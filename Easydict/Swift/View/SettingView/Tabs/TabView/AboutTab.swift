@@ -31,7 +31,7 @@ struct AboutTab: View {
                         .font(.system(size: 35, weight: .medium))
                         .padding(.bottom, 3)
 
-                    Text("current_version \(version)")
+                    Text("current_version \(version) (my-fork)")
                         .font(.system(size: 13))
                         .foregroundColor(.gray)
                         .padding(.bottom, 29)
