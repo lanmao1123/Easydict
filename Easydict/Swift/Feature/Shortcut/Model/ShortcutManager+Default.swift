@@ -26,6 +26,9 @@ extension ShortcutManager {
         Defaults[.silentScreenshotOCRShortcut] = KeyCombo(
             key: .s, cocoaModifiers: [.option, .shift]
         )
+        Defaults[.screenshotDockTranslateShortcut] = KeyCombo(
+            key: .x, cocoaModifiers: .option
+        )
     }
 
     private func setDefaultAppShortcutKeys() {

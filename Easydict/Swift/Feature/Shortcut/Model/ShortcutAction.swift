@@ -25,6 +25,7 @@ public enum ShortcutAction: String, Identifiable, CaseIterable {
     case polishAndReplace
     case translateAndReplace
     case silentScreenshotOCR
+    case screenshotDockTranslate
 
     // OCR specific shortcuts
     case screenshotOCR
@@ -65,6 +66,7 @@ extension ShortcutAction {
         .polishAndReplace,
         .translateAndReplace,
         .silentScreenshotOCR,
+        .screenshotDockTranslate,
         .screenshotOCR,
         .pasteboardOCR,
         .showOCRWindow,
@@ -160,6 +162,12 @@ extension ShortcutAction {
                 icon: .cameraMeteringSpot,
                 defaultsKey: .silentScreenshotOCRShortcut,
                 action: { windowManager.silentScreenshotOCR() }
+            ),
+            .screenshotDockTranslate: .init(
+                titleKey: "menu_screenshot_dock_translate",
+                icon: .cameraViewfinder,
+                defaultsKey: .screenshotDockTranslateShortcut,
+                action: { await ScreenshotDockManager.shared.start() }
             ),
             .pasteboardTranslate: .init(
                 titleKey: "menu_pasteboard_translate",

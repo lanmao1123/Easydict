@@ -132,6 +132,7 @@ extension KeyHolderWrapper {
                 .selectTranslate: DefaultsKeyWrapper(.selectionShortcut),
                 .toggleAutoSelectText: DefaultsKeyWrapper(.toggleAutoSelectTextShortcut),
                 .silentScreenshotOCR: DefaultsKeyWrapper(.silentScreenshotOCRShortcut),
+                .screenshotDockTranslate: DefaultsKeyWrapper(.screenshotDockTranslateShortcut),
                 .showMiniWindow: DefaultsKeyWrapper(.showMiniWindowShortcut),
                 .pasteboardTranslate: DefaultsKeyWrapper(.pasteboardTranslateShortcut),
                 .translateAndReplace: DefaultsKeyWrapper(.translateAndReplaceShortcut),

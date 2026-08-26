@@ -410,6 +410,9 @@ extension Defaults.Keys {
     )
 
     static let screenshotOCRShortcut = Key<KeyCombo?>("EZScreenshotOCRShortcutKey2_keyHolder")
+    static let screenshotDockTranslateShortcut = Key<KeyCombo?>(
+        "EZScreenshotDockTranslateShortcutKey_keyHolder"
+    )
     static let pasteboardOCRShortcut = Key<KeyCombo?>("EZPasteboardOCRShortcutKey_keyHolder")
     static let showOCRWindowShortcut = Key<KeyCombo?>("EZShowOCRWindowShortcutKey_keyHolder")
 
