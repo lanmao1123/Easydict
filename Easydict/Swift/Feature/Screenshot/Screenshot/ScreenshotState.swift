@@ -53,14 +53,46 @@ class ScreenshotState: ObservableObject {
 
     var tipFrame: CGRect = .zero
 
+    /// Whether this overlay switched from selecting into annotation editing.
+    @Published var isEditing = false
+
+    /// Selection rect captured when editing began, top-left origin.
+    private(set) var editingRect = CGRect.zero
+
+    /// Annotation editor created together with the editing session.
+    var annotationEditor: AnnotationEditorState?
+
     /// Reset all state variables
     func reset() {
         isMouseMoved = false
         selectedRect = .zero
         isShowingPreview = false
         shouldHideDarkOverlay = true
+        isEditing = false
 
         cleanup()
+    }
+
+    /// Switches this screen's overlay from selecting into annotation editing:
+    /// selection gestures stop, the frozen background stays fully visible.
+    func beginEditing(inRect rect: CGRect) {
+        cleanup()
+        shouldHideDarkOverlay = true
+        isShowingPreview = false
+        isTipVisible = false
+        editingRect = rect
+        // The call chain starts from AppKit input handling, always main-thread.
+        annotationEditor = MainActor.assumeIsolated {
+            AnnotationEditorState(selectionRect: rect)
+        }
+        isEditing = true
+    }
+
+    /// Leaves annotation editing mode.
+    func endEditing() {
+        isEditing = false
+        editingRect = .zero
+        annotationEditor = nil
     }
 
     /// Releases the local event monitor owned by this screenshot state.

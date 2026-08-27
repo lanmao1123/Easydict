@@ -20,14 +20,7 @@ extension Screenshot {
 
             switch event.type {
             case .keyDown:
-                // Handle keyboard events
-                if event.keyCode == kVK_Escape {
-                    NSLog("ESC key detected locally, canceling screenshot")
-                    finishCapture(nil)
-                } else if event.keyCode == kVK_ANSI_D {
-                    NSLog("D key detected locally, capturing last screenshot rect")
-                    captureLastScreenshotRect()
-                }
+                return handleKeyDown(event)
 
             case .rightMouseDown:
                 // Handle right mouse click
@@ -43,6 +36,82 @@ extension Screenshot {
     }
 
     // MARK: Private
+
+    /// Routes one key event: editing shortcuts first, then capture keys.
+    ///
+    /// While annotating, unhandled keys pass through so the SwiftUI text
+    /// field and toolbar buttons keep receiving input; during plain capture
+    /// everything is consumed as before to avoid the beep.
+    private func handleKeyDown(_ event: NSEvent) -> NSEvent? {
+        let keyCode = event.keyCode
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+
+        if keyCode == kVK_Escape {
+            // While typing, ESC only discards the text draft, restoring the
+            // committed item when re-editing.
+            if let editor = activeAnnotationEditor {
+                let discardedDraft = MainActor.assumeIsolated { () -> Bool in
+                    guard editor.textDraftPoint != nil else { return false }
+                    editor.discardText()
+                    return true
+                }
+                if discardedDraft { return nil }
+            }
+            NSLog("ESC key detected locally, canceling screenshot")
+            finishCapture(nil)
+            return nil
+        }
+
+        if keyCode == kVK_ANSI_D, !editModeEnabled {
+            NSLog("D key detected locally, capturing last screenshot rect")
+            captureLastScreenshotRect()
+            return nil
+        }
+
+        if let editor = activeAnnotationEditor {
+            // Bare F3 while annotating pins the result directly, Snipaste-style.
+            // The function modifier is ignored since fn-mode keyboards report it.
+            if keyCode == kVK_F3,
+               flags.intersection([.command, .control, .option, .shift]).isEmpty {
+                MainActor.assumeIsolated {
+                    editor.pinAndFinish()
+                }
+                return nil
+            }
+
+            let handled = MainActor.assumeIsolated { () -> Bool in
+                guard editor.textDraftPoint == nil else { return false }
+                // ⌘Z/⇧⌘Z undo-redo, ⌘C copy-and-close, ⌘S save-path,
+                // Enter confirms like the toolbar checkmark.
+                if flags == .command, keyCode == kVK_ANSI_Z {
+                    editor.model.undo()
+                    return true
+                }
+                if flags == [.command, .shift], keyCode == kVK_ANSI_Z {
+                    editor.model.redo()
+                    return true
+                }
+                if flags == .command, keyCode == kVK_ANSI_C {
+                    editor.finishByCopying()
+                    return true
+                }
+                if flags == .command, keyCode == kVK_ANSI_S {
+                    editor.finishBySavingPath()
+                    return true
+                }
+                if flags.isEmpty, keyCode == kVK_Return {
+                    editor.finishByCopying()
+                    return true
+                }
+                return false
+            }
+            if handled { return nil }
+            // Pass everything else to the editing UI (text input needs it).
+            return event
+        }
+
+        return nil // Consume, avoid beep sound
+    }
 
     func removeEventMonitor() {
         if let eventMonitor {

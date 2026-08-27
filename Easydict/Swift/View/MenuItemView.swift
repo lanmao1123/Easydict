@@ -38,6 +38,14 @@ struct MenuItemView: View {
             Divider()
 
             silentScreenshotOCRItem.keyboardShortcut(.silentScreenshotOCR)
+            screenshotDockTranslateItem.keyboardShortcut(.screenshotDockTranslate)
+
+            Divider()
+
+            snipToolsEditItem.keyboardShortcut(.snipToolsEditScreen)
+            pinToScreenItem.keyboardShortcut(.pinToScreen)
+            copyImagePathItem.keyboardShortcut(.copyImagePath)
+            colorPickerItem.keyboardShortcut(.colorPicker)
 
             if showOCRMenuItems {
                 screenshotOCRItem
@@ -115,6 +123,26 @@ struct MenuItemView: View {
 
     @ViewBuilder private var silentScreenshotOCRItem: some View {
         menuItem(for: .silentScreenshotOCR)
+    }
+
+    @ViewBuilder private var screenshotDockTranslateItem: some View {
+        menuItem(for: .screenshotDockTranslate)
+    }
+
+    @ViewBuilder private var snipToolsEditItem: some View {
+        menuItem(for: .snipToolsEditScreen)
+    }
+
+    @ViewBuilder private var pinToScreenItem: some View {
+        menuItem(for: .pinToScreen)
+    }
+
+    @ViewBuilder private var copyImagePathItem: some View {
+        menuItem(for: .copyImagePath)
+    }
+
+    @ViewBuilder private var colorPickerItem: some View {
+        menuItem(for: .colorPicker)
     }
 
     @ViewBuilder private var screenshotOCRItem: some View {

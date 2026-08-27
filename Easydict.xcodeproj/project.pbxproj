@@ -410,6 +410,20 @@
 		0D0C4B0000000000000000A3 /* ScreenshotDockPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000B3 /* ScreenshotDockPanel.swift */; };
 		0D0C4B0000000000000000A4 /* ScreenshotDockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000B4 /* ScreenshotDockView.swift */; };
 		0D0C4B0000000000000000A5 /* ScreenshotDockLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000B5 /* ScreenshotDockLayoutTests.swift */; };
+		0D0C4B0000000000000000A6 /* SnipToolsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000B6 /* SnipToolsManager.swift */; };
+		0D0C4B0000000000000000A7 /* PasteboardPathService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000B7 /* PasteboardPathService.swift */; };
+		0D0C4B0000000000000000A8 /* PinImageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000B8 /* PinImageManager.swift */; };
+		0D0C4B0000000000000000A9 /* PinImagePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000B9 /* PinImagePanel.swift */; };
+		0D0C4B0000000000000000AA /* PinImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000BA /* PinImageView.swift */; };
+		0D0C4B0000000000000000AB /* ColorPickerPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000BB /* ColorPickerPanel.swift */; };
+		0D0C4B0000000000000000D1 /* FunctionKeyHotKeyCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000D2 /* FunctionKeyHotKeyCenter.swift */; };
+		0D0C4B0000000000000000AC /* AnnotationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000BC /* AnnotationModel.swift */; };
+		0D0C4B0000000000000000AD /* AnnotationComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000BD /* AnnotationComposer.swift */; };
+		0D0C4B0000000000000000AE /* MosaicRegionRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000BE /* MosaicRegionRenderer.swift */; };
+		0D0C4B0000000000000000AF /* AnnotationCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000BF /* AnnotationCanvasView.swift */; };
+		0D0C4B0000000000000000B0 /* EditToolbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000C0 /* EditToolbarView.swift */; };
+		0D0C4B0000000000000000C4 /* PasteboardPathServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000C6 /* PasteboardPathServiceTests.swift */; };
+		0D0C4B0000000000000000C5 /* AnnotationModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000C7 /* AnnotationModelTests.swift */; };
 		03D9D6FF2D8C186F009E0CEC /* NSScreen+Extention.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03D9D6FE2D8C186F009E0CEC /* NSScreen+Extention.swift */; };
 		03DB07162F0C2CDD00D2C68C /* DetectManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03DB07152F0C2CDD00D2C68C /* DetectManager.swift */; };
 		03DC38C1292CC97900922CB2 /* QueryServiceConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03F60B4F2F4C123400123456 /* QueryServiceConfiguration.swift */; };
@@ -1139,6 +1153,20 @@
 		0D0C4B0000000000000000B3 /* ScreenshotDockPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotDockPanel.swift; sourceTree = "<group>"; };
 		0D0C4B0000000000000000B4 /* ScreenshotDockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotDockView.swift; sourceTree = "<group>"; };
 		0D0C4B0000000000000000B5 /* ScreenshotDockLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotDockLayoutTests.swift; sourceTree = "<group>"; };
+		0D0C4B0000000000000000B6 /* SnipToolsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnipToolsManager.swift; sourceTree = "<group>"; };
+		0D0C4B0000000000000000B7 /* PasteboardPathService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteboardPathService.swift; sourceTree = "<group>"; };
+		0D0C4B0000000000000000B8 /* PinImageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinImageManager.swift; sourceTree = "<group>"; };
+		0D0C4B0000000000000000B9 /* PinImagePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinImagePanel.swift; sourceTree = "<group>"; };
+		0D0C4B0000000000000000BA /* PinImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinImageView.swift; sourceTree = "<group>"; };
+		0D0C4B0000000000000000BB /* ColorPickerPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorPickerPanel.swift; sourceTree = "<group>"; };
+		0D0C4B0000000000000000D2 /* FunctionKeyHotKeyCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FunctionKeyHotKeyCenter.swift; sourceTree = "<group>"; };
+		0D0C4B0000000000000000BC /* AnnotationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationModel.swift; sourceTree = "<group>"; };
+		0D0C4B0000000000000000BD /* AnnotationComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationComposer.swift; sourceTree = "<group>"; };
+		0D0C4B0000000000000000BE /* MosaicRegionRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MosaicRegionRenderer.swift; sourceTree = "<group>"; };
+		0D0C4B0000000000000000BF /* AnnotationCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationCanvasView.swift; sourceTree = "<group>"; };
+		0D0C4B0000000000000000C0 /* EditToolbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditToolbarView.swift; sourceTree = "<group>"; };
+		0D0C4B0000000000000000C6 /* PasteboardPathServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SnipTools/PasteboardPathServiceTests.swift"; sourceTree = "<group>"; };
+		0D0C4B0000000000000000C7 /* AnnotationModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ScreenshotAnnotate/AnnotationModelTests.swift"; sourceTree = "<group>"; };
 		03D9D6FE2D8C186F009E0CEC /* NSScreen+Extention.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSScreen+Extention.swift"; sourceTree = "<group>"; };
 		03DB07152F0C2CDD00D2C68C /* DetectManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectManager.swift; sourceTree = "<group>"; };
 		03DC7C5C2A3ABE28000BF7C9 /* EZConstKey.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = EZConstKey.h; sourceTree = "<group>"; };
@@ -1721,6 +1749,7 @@
 				0333D4BF2E5C6EBE00CD4613 /* ShortcutManager.swift */,
 				9643D9432B6FEF5F000FBEA6 /* ShortcutManager+Default.swift */,
 				9608354F2B6791F200C6A931 /* ShortcutManager+Validator.swift */,
+				0D0C4B0000000000000000D2 /* FunctionKeyHotKeyCenter.swift */,
 				0333D4C22E5C6F1500CD4613 /* ShortcutAction.swift */,
 				0333D4C62E5CA38500CD4613 /* ActionConfiguration.swift */,
 				0333D4C82E5CA3F700CD4613 /* ShortcutConfictAlertMessage.swift */,
@@ -1956,6 +1985,31 @@
 				0D0C4B0000000000000000B4 /* ScreenshotDockView.swift */,
 			);
 			path = ScreenshotDockTranslate;
+			sourceTree = "<group>";
+		};
+		0D0C4B0000000000000000C2 /* SnipTools */ = {
+			isa = PBXGroup;
+			children = (
+				0D0C4B0000000000000000BB /* ColorPickerPanel.swift */,
+				0D0C4B0000000000000000B8 /* PinImageManager.swift */,
+				0D0C4B0000000000000000BA /* PinImageView.swift */,
+				0D0C4B0000000000000000B9 /* PinImagePanel.swift */,
+				0D0C4B0000000000000000B7 /* PasteboardPathService.swift */,
+				0D0C4B0000000000000000B6 /* SnipToolsManager.swift */,
+			);
+			path = SnipTools;
+			sourceTree = "<group>";
+		};
+		0D0C4B0000000000000000C3 /* ScreenshotAnnotate */ = {
+			isa = PBXGroup;
+			children = (
+				0D0C4B0000000000000000BD /* AnnotationComposer.swift */,
+				0D0C4B0000000000000000BF /* AnnotationCanvasView.swift */,
+				0D0C4B0000000000000000BC /* AnnotationModel.swift */,
+				0D0C4B0000000000000000BE /* MosaicRegionRenderer.swift */,
+				0D0C4B0000000000000000C0 /* EditToolbarView.swift */,
+			);
+			path = ScreenshotAnnotate;
 			sourceTree = "<group>";
 		};
 		036A0DBD2AD9420B006E6D4F /* EZReplaceTextButton */ = {
@@ -3508,6 +3562,8 @@
 			children = (
 				0328D0792D7D42520050B2C7 /* Screenshot */,
 				0D0C4B0000000000000000C1 /* ScreenshotDockTranslate */,
+				0D0C4B0000000000000000C3 /* ScreenshotAnnotate */,
+				0D0C4B0000000000000000C2 /* SnipTools */,
 				03A00D862E616D3D001A4D82 /* ActionManager */,
 				032AAA502C456D96007996A1 /* HTTPServer */,
 				EA3B81F72B52549B004C0E8B /* Configuration */,
@@ -3563,6 +3619,8 @@
 				02DEDC0420260430000000C1 /* Markdown */,
 				030732CB2F24862A0001382A /* OCR */,
 				0D0C4B0000000000000000B5 /* ScreenshotDockLayoutTests.swift */,
+				0D0C4B0000000000000000C6 /* PasteboardPathServiceTests.swift */,
+				0D0C4B0000000000000000C7 /* AnnotationModelTests.swift */,
 			);
 			path = Feature;
 			sourceTree = "<group>";
@@ -4248,6 +4306,8 @@
 				030732D42F24862A0001382A /* OCRTextProcessingTests.swift in Sources */,
 				030732D52F24862A0001382A /* OCRTestSample+Chinese.swift in Sources */,
 				0D0C4B0000000000000000A5 /* ScreenshotDockLayoutTests.swift in Sources */,
+				0D0C4B0000000000000000C4 /* PasteboardPathServiceTests.swift in Sources */,
+				0D0C4B0000000000000000C5 /* AnnotationModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -4344,6 +4404,18 @@
 				0D0C4B0000000000000000A2 /* ScreenshotDockManager.swift in Sources */,
 				0D0C4B0000000000000000A3 /* ScreenshotDockPanel.swift in Sources */,
 				0D0C4B0000000000000000A4 /* ScreenshotDockView.swift in Sources */,
+				0D0C4B0000000000000000A6 /* SnipToolsManager.swift in Sources */,
+				0D0C4B0000000000000000A7 /* PasteboardPathService.swift in Sources */,
+				0D0C4B0000000000000000A8 /* PinImageManager.swift in Sources */,
+				0D0C4B0000000000000000A9 /* PinImagePanel.swift in Sources */,
+				0D0C4B0000000000000000AA /* PinImageView.swift in Sources */,
+				0D0C4B0000000000000000AB /* ColorPickerPanel.swift in Sources */,
+				0D0C4B0000000000000000AC /* AnnotationModel.swift in Sources */,
+				0D0C4B0000000000000000AD /* AnnotationComposer.swift in Sources */,
+				0D0C4B0000000000000000AE /* MosaicRegionRenderer.swift in Sources */,
+				0D0C4B0000000000000000AF /* AnnotationCanvasView.swift in Sources */,
+				0D0C4B0000000000000000B0 /* EditToolbarView.swift in Sources */,
+				0D0C4B0000000000000000D1 /* FunctionKeyHotKeyCenter.swift in Sources */,
 				03FEF1632D45D5C2002D5F28 /* HostWindowManager.swift in Sources */,
 				033363A0293A05D200FED9C8 /* EZSelectLanguageButton.m in Sources */,
 				960835502B6791F200C6A931 /* ShortcutManager+Validator.swift in Sources */,

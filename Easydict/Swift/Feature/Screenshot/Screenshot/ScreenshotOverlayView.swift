@@ -23,10 +23,16 @@ struct ScreenshotOverlayView: View {
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             backgroundLayer
-            selectionLayer
 
-            if state.isTipVisible {
-                tipLayer
+            if state.isEditing {
+                editingDimLayer
+                editingLayer
+            } else {
+                selectionLayer
+
+                if state.isTipVisible {
+                    tipLayer
+                }
             }
         }
         .ignoresSafeArea()
@@ -83,16 +89,71 @@ struct ScreenshotOverlayView: View {
 
     /// Visual representation of the selection area
     private var selectionRectangleView: some View {
-        Group {
-            // Selection border with semi-transparent dark background
+        ZStack {
+            // Dark underlay keeps the white border readable on light content.
             Rectangle()
-                .stroke(Color.white, lineWidth: 2)
-                .background(Color.black.opacity(0.1)) // Add a darker overlay for selection area
-                .frame(width: state.selectedRect.width, height: state.selectedRect.height)
-                .position(
-                    x: state.selectedRect.midX,
-                    y: state.selectedRect.midY
-                )
+                .strokeBorder(Color.black.opacity(0.6), lineWidth: 4)
+
+            Rectangle()
+                .strokeBorder(Color.white, lineWidth: 2)
+        }
+        .background(Color.black.opacity(0.1)) // Add a darker overlay for selection area
+        .frame(width: state.selectedRect.width, height: state.selectedRect.height)
+        .position(
+            x: state.selectedRect.midX,
+            y: state.selectedRect.midY
+        )
+    }
+
+    /// Snipaste-style editing mask: everything outside the selection stays
+    /// dimmed with a hole punched over it plus a high-contrast border, so the
+    /// editing boundary stays obvious while annotating.
+    private var editingDimLayer: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .topLeading) {
+                Path { path in
+                    path.addRect(CGRect(origin: .zero, size: geometry.size))
+                    path.addRect(state.editingRect)
+                }
+                .fill(Color.black.opacity(0.35), style: FillStyle(eoFill: true))
+
+                Rectangle()
+                    .strokeBorder(Color.black.opacity(0.6), lineWidth: 4)
+                    .frame(width: state.editingRect.width, height: state.editingRect.height)
+                    .offset(x: state.editingRect.minX, y: state.editingRect.minY)
+
+                Rectangle()
+                    .strokeBorder(Color.white, lineWidth: 2)
+                    .frame(width: state.editingRect.width, height: state.editingRect.height)
+                    .offset(x: state.editingRect.minX, y: state.editingRect.minY)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    /// Annotation editing UI over the selection: canvas plus floating toolbar,
+    /// both positioned in the same top-left screen space as `editingRect`.
+    @ViewBuilder
+    private var editingLayer: some View {
+        if let editor = state.annotationEditor {
+            GeometryReader { geometry in
+                ZStack(alignment: .topLeading) {
+                    // The canvas spans exactly the selection so its item
+                    // coordinates line up with what gets exported.
+                    AnnotationCanvasView(editor: editor)
+                        .frame(
+                            width: editor.selectionRect.width,
+                            height: editor.selectionRect.height
+                        )
+                        .offset(x: editor.selectionRect.minX, y: editor.selectionRect.minY)
+
+                    EditToolbarView(
+                        editor: editor,
+                        model: editor.model,
+                        containerSize: geometry.size
+                    )
+                }
+            }
         }
     }
 
@@ -185,11 +246,16 @@ struct ScreenshotOverlayView: View {
 
 // MARK: - ScreenshotOverlayHostingView
 
-/// Ensures the cursor updates to a crosshair while hovering over the screenshot overlay.
+/// Registers the overlay cursor: crosshair while selecting, the active
+/// annotation tool's cursor while editing.
 final class ScreenshotOverlayHostingView<Content: View>: NSHostingView<Content> {
-    /// Registers a crosshair cursor for the entire overlay area.
     override func resetCursorRects() {
         discardCursorRects()
-        addCursorRect(bounds, cursor: .crosshair)
+        if let editor = Screenshot.shared.activeAnnotationEditor {
+            let brushSide = AnnotationEditorState.brushSides[editor.widthIndex % AnnotationEditorState.brushSides.count]
+            addCursorRect(bounds, cursor: AnnotationCursors.cursor(for: editor.selectedTool, brushSide: brushSide))
+        } else {
+            addCursorRect(bounds, cursor: .crosshair)
+        }
     }
 }

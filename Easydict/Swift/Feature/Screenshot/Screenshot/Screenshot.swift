@@ -53,6 +53,11 @@ class Screenshot: NSObject {
 
     // MARK: Internal
 
+    /// When true, the next capture enters annotation editing after selection
+    /// instead of returning the image immediately. Session-scoped: always reset
+    /// in `finishCapture`, so unrelated shortcuts keep the classic behavior.
+    var editModeEnabled = false
+
     var overlayWindows: [NSScreen: NSWindow] = [:]
     var overlayViewStates: [NSScreen: ScreenshotState] = [:]
 
@@ -61,11 +66,37 @@ class Screenshot: NSObject {
     /// Work item for the delayed screenshot capture after pressing 'D' for preview.
     var previewScreenshotWorkItem: DispatchWorkItem?
 
+    /// The annotation editor of the ongoing editing session, if any.
+    var activeAnnotationEditor: AnnotationEditorState? {
+        guard editModeEnabled else { return nil }
+        let screen = lastScreen ?? NSScreen.currentMouseScreen()
+        guard let screen else { return nil }
+        return overlayViewStates[screen]?.annotationEditor
+    }
+
+    /// The editing rect converted to AppKit global coordinates (bottom-left
+    /// origin), so the annotated image can be pinned exactly over the spot
+    /// it was captured from.
+    var editingGlobalRect: CGRect? {
+        guard let screen = lastScreen,
+              let rect = overlayViewStates[screen]?.editingRect,
+              !rect.isEmpty else { return nil }
+        return CGRect(
+            x: screen.frame.minX + rect.minX,
+            y: screen.frame.maxY - rect.maxY,
+            width: rect.width,
+            height: rect.height
+        )
+    }
+
     /// Finish screenshot capture and call the completion handler
     @objc
     func finishCapture(_ image: NSImage?) {
         // Cancel any pending preview screenshot task first
         cancelPreviewScreenshotTimer()
+
+        // The session flag lives for exactly one capture, success or not.
+        editModeEnabled = false
 
         isTakingScreenshot = false
         popCrosshairCursor()
@@ -101,12 +132,22 @@ class Screenshot: NSObject {
     func performScreenshot(screen: NSScreen, rect: CGRect) {
         NSLog("Performing screenshot, screen frame: \(screen.frame), rect: \(rect)")
 
-        // Reset the state for the specific screen to hide selection UI etc.
-        overlayViewStates[screen]?.reset()
-
         // Save last screenshot rect and screen
         lastScreenshotRect = rect
         lastScreen = screen
+
+        /*
+         Editing mode parks this capture session on the overlay instead of
+         finishing it: the dark overlay stays hidden, ESC keeps its fallback,
+         and annotation editing ends through `completeEditing`.
+         */
+        if editModeEnabled {
+            overlayViewStates[screen]?.beginEditing(inRect: rect)
+            return
+        }
+
+        // Reset the state for the specific screen to hide selection UI etc.
+        overlayViewStates[screen]?.reset()
 
         // Async dispatch to allow UI updates (state reset) before capturing
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -114,6 +155,23 @@ class Screenshot: NSObject {
             // Finish the capture process with the result
             self.finishCapture(image)
         }
+    }
+
+    /// Completes annotation editing: hides overlays and fires the completion
+    /// handler exactly like a regular capture, with `image` or nil to cancel.
+    func completeEditing(with image: NSImage?) {
+        if let screen = lastScreen {
+            overlayViewStates[screen]?.endEditing()
+        }
+        finishCapture(image)
+    }
+
+    /// The clean, un-annotated screenshot covering the editing rect.
+    func captureEditedBaseImage() -> NSImage? {
+        guard let screen = lastScreen,
+              let rect = overlayViewStates[screen]?.editingRect,
+              !rect.isEmpty else { return nil }
+        return screen.takeScreenshot(rect: rect)
     }
 
     // MARK: Private

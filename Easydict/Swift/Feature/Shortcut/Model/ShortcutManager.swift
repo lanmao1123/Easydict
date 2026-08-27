@@ -24,6 +24,15 @@ class ShortcutManager: NSObject {
             setDefaultShortcutKeys()
         }
 
+        /*
+         Older installs miss the SnipTools keys because they never see
+         firstLaunch again; inject their defaults exactly once.
+         */
+        if !Defaults[.snipToolsDefaultsApplied] {
+            setSnipToolsDefaultKeys()
+            Defaults[.snipToolsDefaultsApplied] = true
+        }
+
         // Bind global shortcut actions
         setupGlobalShortcutActions()
     }

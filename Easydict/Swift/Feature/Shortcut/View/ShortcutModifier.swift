@@ -41,10 +41,10 @@ struct ShortcutModifierWithKey<Content: View>: View {
     @Default var shortcutKey: KeyCombo?
 
     var body: some View {
-        if let shortcutKey {
+        if let shortcutKey, let keyEquivalent = fetchShortcutKeyEquivalent(shortcutKey) {
             content
                 .keyboardShortcut(
-                    fetchShortcutKeyEquivalent(shortcutKey),
+                    keyEquivalent,
                     modifiers: fetchShortcutKeyEventModifiers(shortcutKey)
                 )
         } else {
@@ -54,12 +54,22 @@ struct ShortcutModifierWithKey<Content: View>: View {
 
     // MARK: Private
 
-    private func fetchShortcutKeyEquivalent(_ keyCombo: KeyCombo) -> KeyEquivalent {
-        if keyCombo.doubledModifiers {
-            KeyEquivalent(Character(keyCombo.keyEquivalentModifierMaskString))
-        } else {
-            KeyEquivalent(Character(keyCombo.keyEquivalent))
+    /// Converts a stored combo into a single-grapheme `KeyEquivalent`.
+    ///
+    /// Function keys such as F1 map to private-use glyphs and some layouts
+    /// report multi-cluster strings for them; constructing a `Character` from
+    /// those crashes at runtime. Any combo that does not reduce to exactly one
+    /// cluster simply gets no visible menu shortcut — the global hotkey still
+    /// works, because it is registered separately by Magnet.
+    private func fetchShortcutKeyEquivalent(_ keyCombo: KeyCombo) -> KeyEquivalent? {
+        let string = keyCombo.doubledModifiers
+            ? keyCombo.keyEquivalentModifierMaskString
+            : keyCombo.keyEquivalent
+
+        guard string.count == 1, let character = string.first else {
+            return nil
         }
+        return KeyEquivalent(character)
     }
 
     private func fetchShortcutKeyEventModifiers(_ keyCombo: KeyCombo) -> SwiftUI.EventModifiers {

@@ -29,6 +29,17 @@ extension ShortcutManager {
         Defaults[.screenshotDockTranslateShortcut] = KeyCombo(
             key: .x, cocoaModifiers: .option
         )
+        setSnipToolsDefaultKeys()
+    }
+
+    /// Default keys for the SnipTools actions; shared by first launch and by
+    /// the one-shot migration that back-fills older installs.
+    func setSnipToolsDefaultKeys() {
+        // Bare function keys, mirroring Snipaste's muscle memory.
+        Defaults[.snipToolsEditShortcut] = KeyCombo(key: .f1, cocoaModifiers: [])
+        Defaults[.pinToScreenShortcut] = KeyCombo(key: .f3, cocoaModifiers: [])
+        Defaults[.copyImagePathShortcut] = KeyCombo(key: .f4, cocoaModifiers: [])
+        Defaults[.colorPickerShortcut] = KeyCombo(key: .c, cocoaModifiers: .option)
     }
 
     private func setDefaultAppShortcutKeys() {
@@ -66,9 +77,27 @@ extension ShortcutManager {
     /// Bind global shortcut action (registers as system-wide hotkey)
     func bindingGlobalShortcutAction(keyCombo: KeyCombo?, action: ShortcutAction) {
         HotKeyCenter.shared.unregisterHotKey(with: action.rawValue)
+        FunctionKeyHotKeyCenter.unregister(identifier: action.rawValue)
 
         // Ensure the action is a global action and keyCombo is valid
         guard let keyCombo, action.isGlobal else {
+            return
+        }
+
+        /*
+         Bare function keys: Magnet stores them with the fn modifier flag,
+         which Carbon hotkey matching can never satisfy, so those hotkeys
+         never fire. Route them through our own Carbon registration with no
+         modifiers instead.
+         */
+        if !keyCombo.doubledModifiers,
+           keyCombo.modifiers == Int(NSEvent.ModifierFlags.function.rawValue) {
+            FunctionKeyHotKeyCenter.register(
+                identifier: action.rawValue,
+                keyCode: Int(keyCombo.currentKeyCode)
+            ) {
+                action.executeAction()
+            }
             return
         }
 

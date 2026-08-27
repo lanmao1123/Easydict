@@ -413,6 +413,12 @@ extension Defaults.Keys {
     static let screenshotDockTranslateShortcut = Key<KeyCombo?>(
         "EZScreenshotDockTranslateShortcutKey_keyHolder"
     )
+    static let snipToolsEditShortcut = Key<KeyCombo?>("EZSnipToolsEditShortcutKey_keyHolder")
+    static let pinToScreenShortcut = Key<KeyCombo?>("EZPinToScreenShortcutKey_keyHolder")
+    static let copyImagePathShortcut = Key<KeyCombo?>("EZCopyImagePathShortcutKey_keyHolder")
+    static let colorPickerShortcut = Key<KeyCombo?>("EZColorPickerShortcutKey_keyHolder")
+    /// One-shot flag: older installs get the SnipTools default keys too.
+    static let snipToolsDefaultsApplied = Key<Bool>("EZSnipToolsDefaultKeysApplied", default: false)
     static let pasteboardOCRShortcut = Key<KeyCombo?>("EZPasteboardOCRShortcutKey_keyHolder")
     static let showOCRWindowShortcut = Key<KeyCombo?>("EZShowOCRWindowShortcutKey_keyHolder")
 

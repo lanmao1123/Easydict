@@ -27,6 +27,12 @@ public enum ShortcutAction: String, Identifiable, CaseIterable {
     case silentScreenshotOCR
     case screenshotDockTranslate
 
+    // SnipTools global shortcuts
+    case snipToolsEditScreen
+    case pinToScreen
+    case copyImagePath
+    case colorPicker
+
     // OCR specific shortcuts
     case screenshotOCR
     case pasteboardOCR
@@ -67,6 +73,10 @@ extension ShortcutAction {
         .translateAndReplace,
         .silentScreenshotOCR,
         .screenshotDockTranslate,
+        .snipToolsEditScreen,
+        .pinToScreen,
+        .copyImagePath,
+        .colorPicker,
         .screenshotOCR,
         .pasteboardOCR,
         .showOCRWindow,
@@ -168,6 +178,30 @@ extension ShortcutAction {
                 icon: .cameraViewfinder,
                 defaultsKey: .screenshotDockTranslateShortcut,
                 action: { await ScreenshotDockManager.shared.start() }
+            ),
+            .snipToolsEditScreen: .init(
+                titleKey: "menu_edit_screenshot",
+                icon: .cameraOnRectangleFill,
+                defaultsKey: .snipToolsEditShortcut,
+                action: { await SnipToolsManager.shared.startScreenshotEdit() }
+            ),
+            .pinToScreen: .init(
+                titleKey: "menu_pin_to_screen",
+                icon: .pin,
+                defaultsKey: .pinToScreenShortcut,
+                action: { await SnipToolsManager.shared.pinToScreen() }
+            ),
+            .copyImagePath: .init(
+                titleKey: "menu_copy_image_path",
+                icon: .docOnDoc,
+                defaultsKey: .copyImagePathShortcut,
+                action: { await SnipToolsManager.shared.copyImagePath() }
+            ),
+            .colorPicker: .init(
+                titleKey: "menu_color_picker",
+                icon: .eyedropper,
+                defaultsKey: .colorPickerShortcut,
+                action: { await SnipToolsManager.shared.startColorPicker() }
             ),
             .pasteboardTranslate: .init(
                 titleKey: "menu_pasteboard_translate",
