@@ -149,12 +149,15 @@ class Screenshot: NSObject {
         // Reset the state for the specific screen to hide selection UI etc.
         overlayViewStates[screen]?.reset()
 
-        // Async dispatch to allow UI updates (state reset) before capturing
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            let image = screen.takeScreenshot(rect: rect)
-            // Finish the capture process with the result
-            self.finishCapture(image)
-        }
+        /*
+         The frame frozen before the overlay appeared is exactly the clean
+         shot — cropping it finishes instantly and cannot contain any of our
+         overlay UI, unlike the previous re-shoot after a 0.1 s wait.
+         */
+        let image = overlayViewStates[screen]?.frozenDisplayImage
+            .flatMap { screen.croppedScreenshot(from: $0, rect: rect) }
+            ?? screen.takeScreenshot(rect: rect)
+        finishCapture(image)
     }
 
     /// Completes annotation editing: hides overlays and fires the completion
@@ -171,6 +174,12 @@ class Screenshot: NSObject {
         guard let screen = lastScreen,
               let rect = overlayViewStates[screen]?.editingRect,
               !rect.isEmpty else { return nil }
+        // Crop the frame frozen at capture start — instant, versus a fresh
+        // full-display CGDisplayCreateImage on every ⌘C / mosaic stroke.
+        if let frozen = overlayViewStates[screen]?.frozenDisplayImage,
+           let cropped = screen.croppedScreenshot(from: frozen, rect: rect) {
+            return cropped
+        }
         return screen.takeScreenshot(rect: rect)
     }
 
@@ -239,6 +248,10 @@ class Screenshot: NSObject {
     }
 
     private func createOverlayWindow(for screen: NSScreen) {
+        let state = ScreenshotState(screen: screen)
+        // Freeze the clean display before our own window can appear in it.
+        state.frozenDisplayImage = screen.takeScreenshot()
+
         let window = ScreenshotOverlayWindow(
             contentRect: screen.frame,
             styleMask: [.borderless],
@@ -252,7 +265,6 @@ class Screenshot: NSObject {
         window.isOpaque = false
         window.makeKeyAndOrderFront(nil)
 
-        let state = ScreenshotState(screen: screen)
         let contentView = ScreenshotOverlayView(state: state)
         window.contentView = ScreenshotOverlayHostingView(rootView: contentView)
         if let contentView = window.contentView {

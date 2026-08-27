@@ -15,7 +15,12 @@ struct ScreenshotOverlayView: View {
 
     init(state: ScreenshotState) {
         self.state = state
-        self._backgroundImage = State(initialValue: state.screen.takeScreenshot())
+        /*
+         The frame was frozen once in createOverlayWindow. Re-shooting here
+         would fire a full CGDisplayCreateImage on every SwiftUI re-init of
+         this struct — i.e. every frame of the selection drag.
+         */
+        self._backgroundImage = State(initialValue: state.frozenDisplayImage)
     }
 
     // MARK: Internal

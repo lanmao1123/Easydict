@@ -48,6 +48,31 @@ extension NSScreen {
         return image
     }
 
+    /// Crops a previously captured full-screen image to `rect` (top-left
+    /// origin), applying the same Retina scaling as `takeScreenshot(rect:)`.
+    /// Lets every consumer reuse the frame frozen at capture start instead of
+    /// re-shooting the display.
+    func croppedScreenshot(from image: NSImage, rect: CGRect) -> NSImage? {
+        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            NSLog("Failed to read CGImage from frozen screenshot")
+            return nil
+        }
+
+        let scale = CGFloat(cgImage.width) / max(bounds.width, 1)
+        let scaledCropRect = CGRect(
+            x: rect.origin.x * scale,
+            y: rect.origin.y * scale,
+            width: rect.width * scale,
+            height: rect.height * scale
+        ).integral
+        guard scaledCropRect.width >= 1, scaledCropRect.height >= 1,
+              let cropped = cgImage.cropping(to: scaledCropRect) else {
+            NSLog("Failed to crop frozen screenshot, rect: \(rect)")
+            return nil
+        }
+        return NSImage(cgImage: cropped, size: .zero)
+    }
+
     var bounds: CGRect {
         CGRect(origin: .zero, size: frame.size)
     }

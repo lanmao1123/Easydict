@@ -32,6 +32,11 @@ class ScreenshotState: ObservableObject {
     /// Screen frame is `bottom-left` origin.
     var screen: NSScreen
 
+    /// Full-screen frame captured once before the overlay window appears.
+    /// Every consumer (mask background, ⌘C compose, mosaic base, plain
+    /// capture) crops this instead of re-shooting the display.
+    var frozenDisplayImage: NSImage?
+
     /// Controls whether the dark overlay is shown during screenshot selection for this specific screen state. Defaults to false.
     var enableDarkOverlay = false
 
