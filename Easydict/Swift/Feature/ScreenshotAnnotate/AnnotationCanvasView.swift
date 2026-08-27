@@ -61,6 +61,11 @@ final class AnnotationEditorState: ObservableObject {
 
     let model = AnnotationModel()
 
+    /// Live stroke bitmap: effect tiles composite into one context during the
+    /// drag, so the canvas refreshes once per tile-stamp instead of rebuilding
+    /// one view per tile. Committed as a single region item on mouse-up.
+    @Published private(set) var liveStrokeCanvas: CGImage?
+
     var textFontSize: CGFloat {
         Self.textFontSizes[textFontSizeIndex % Self.textFontSizes.count]
     }
@@ -110,12 +115,11 @@ final class AnnotationEditorState: ObservableObject {
             inProgressPoints = [inProgressPoints.first ?? localPoint, localPoint]
 
         case .blur, .mosaic:
-            // Brush painting, Snipping-Tool style: tiles appear live along
-            // the stroke; the whole stroke forms one undo group.
+            // Brush painting, Snipping-Tool style: tiles composite into a
+            // live bitmap while dragging; mouse-up commits it as one item.
             if !brushStrokeActive {
                 brushStrokeActive = true
                 brushTileCount = 0
-                model.beginStrokeGroup()
                 NSLog(
                     "[SnipTools] Brush stroke started, tool=%@, selection=%@",
                     selectedTool.rawValue,
@@ -191,7 +195,7 @@ final class AnnotationEditorState: ObservableObject {
             if brushStrokeActive {
                 brushStrokeActive = false
                 lastBrushPoint = nil
-                model.endStrokeGroup()
+                commitLiveStroke()
                 let toolName = selectedTool.rawValue
                 let count = brushTileCount
                 NSLog("[SnipTools] Brush stroke finished, tool=%@, tiles=%d", toolName, count)
@@ -308,6 +312,8 @@ final class AnnotationEditorState: ObservableObject {
     /// Tiles committed in the current stroke, for logging.
     private var brushTileCount = 0
 
+    private var liveStrokeContext: CGContext?
+
     /// Lazy pixel tile of the clean selection, needed by mosaic/blur commits.
     private var baseTile: CGImage?
 
@@ -373,8 +379,61 @@ final class AnnotationEditorState: ObservableObject {
             )
             return
         }
-        model.addSilent(AnnotationItem(kind: .region(image: tile, frame: tileRect), style: currentStyle))
+        drawLiveTile(tile, in: tileRect)
         brushTileCount += 1
+    }
+
+    /// Composites a tile into the live stroke bitmap (top-left point space).
+    private func drawLiveTile(_ tile: CGImage, in rect: CGRect) {
+        guard let context = ensureLiveStrokeContext() else { return }
+        let scale = CGFloat(context.width) / max(selectionRect.width, 1)
+
+        context.saveGState()
+        // Annotation space is top-left; CG space is bottom-left.
+        context.translateBy(x: 0, y: CGFloat(context.height))
+        context.scaleBy(x: 1, y: -1)
+        context.draw(
+            tile,
+            in: CGRect(
+                x: rect.minX * scale,
+                y: rect.minY * scale,
+                width: rect.width * scale,
+                height: rect.height * scale
+            )
+        )
+        context.restoreGState()
+
+        liveStrokeCanvas = context.makeImage()
+    }
+
+    private func ensureLiveStrokeContext() -> CGContext? {
+        if let liveStrokeContext { return liveStrokeContext }
+
+        guard let base = ensureBaseTile() else { return nil }
+        let scale = CGFloat(base.width) / max(selectionRect.width, 1)
+        let context = CGContext(
+            data: nil,
+            width: Int(selectionRect.width * scale),
+            height: Int(selectionRect.height * scale),
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        )
+        liveStrokeContext = context
+        return context
+    }
+
+    /// Mouse-up: the whole live bitmap becomes one region item, so one undo
+    /// step removes the entire stroke exactly like the previous grouped adds.
+    private func commitLiveStroke() {
+        defer {
+            liveStrokeContext = nil
+            liveStrokeCanvas = nil
+        }
+        guard let context = liveStrokeContext, let image = context.makeImage() else { return }
+        let frame = CGRect(origin: .zero, size: selectionRect.size)
+        model.add(AnnotationItem(kind: .region(image: image, frame: frame), style: currentStyle))
     }
 
     /// Renders a mosaic/blur tile covering `region` (top-left point space).
@@ -482,6 +541,16 @@ struct AnnotationCanvasView: View {
                 // The item under re-edit is hidden — the live draft stands in.
                 ForEach(model.items.filter { $0.id != editor.editingTextItemID }, id: \.id) { item in
                     itemView(for: item)
+                        .allowsHitTesting(false)
+                }
+
+                // In-flight brush stroke: one bitmap replaces dozens of tile
+                // views, keeping the drag at full frame rate.
+                if let live = editor.liveStrokeCanvas {
+                    Image(decorative: live, scale: 1)
+                        .resizable()
+                        .interpolation(editor.selectedTool == .mosaic ? .none : .medium)
+                        .frame(width: editor.selectionRect.width, height: editor.selectionRect.height)
                         .allowsHitTesting(false)
                 }
 
