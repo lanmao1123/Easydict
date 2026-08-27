@@ -46,6 +46,7 @@ struct MenuItemView: View {
             pinToScreenItem.keyboardShortcut(.pinToScreen)
             copyImagePathItem.keyboardShortcut(.copyImagePath)
             colorPickerItem.keyboardShortcut(.colorPicker)
+            clipboardHistoryItem.keyboardShortcut(.clipboardHistory)
 
             if showOCRMenuItems {
                 screenshotOCRItem
@@ -143,6 +144,10 @@ struct MenuItemView: View {
 
     @ViewBuilder private var colorPickerItem: some View {
         menuItem(for: .colorPicker)
+    }
+
+    @ViewBuilder private var clipboardHistoryItem: some View {
+        menuItem(for: .clipboardHistory)
     }
 
     @ViewBuilder private var screenshotOCRItem: some View {

@@ -86,6 +86,9 @@ extension Tag {
     /// Screenshot functionality (截图功能)
     @Tag static var screenshot: Self
 
+    /// Clipboard history functionality (剪贴板历史功能)
+    @Tag static var clipboard: Self
+
     /// Markdown rendering pipeline (Markdown 渲染功能)
     @Tag static var markdown: Self
 

@@ -33,6 +33,9 @@ public enum ShortcutAction: String, Identifiable, CaseIterable {
     case copyImagePath
     case colorPicker
 
+    // Clipboard history
+    case clipboardHistory
+
     // OCR specific shortcuts
     case screenshotOCR
     case pasteboardOCR
@@ -77,6 +80,7 @@ extension ShortcutAction {
         .pinToScreen,
         .copyImagePath,
         .colorPicker,
+        .clipboardHistory,
         .screenshotOCR,
         .pasteboardOCR,
         .showOCRWindow,
@@ -202,6 +206,12 @@ extension ShortcutAction {
                 icon: .eyedropper,
                 defaultsKey: .colorPickerShortcut,
                 action: { await SnipToolsManager.shared.startColorPicker() }
+            ),
+            .clipboardHistory: .init(
+                titleKey: "menu_clipboard_history",
+                icon: .clipboard,
+                defaultsKey: .clipboardHistoryShortcut,
+                action: { await ClipboardManager.shared.togglePanel() }
             ),
             .pasteboardTranslate: .init(
                 titleKey: "menu_pasteboard_translate",

@@ -137,6 +137,7 @@ extension KeyHolderWrapper {
                 .pinToScreen: DefaultsKeyWrapper(.pinToScreenShortcut),
                 .copyImagePath: DefaultsKeyWrapper(.copyImagePathShortcut),
                 .colorPicker: DefaultsKeyWrapper(.colorPickerShortcut),
+                .clipboardHistory: DefaultsKeyWrapper(.clipboardHistoryShortcut),
                 .showMiniWindow: DefaultsKeyWrapper(.showMiniWindowShortcut),
                 .pasteboardTranslate: DefaultsKeyWrapper(.pasteboardTranslateShortcut),
                 .translateAndReplace: DefaultsKeyWrapper(.translateAndReplaceShortcut),

@@ -33,8 +33,23 @@ class ShortcutManager: NSObject {
             Defaults[.snipToolsDefaultsApplied] = true
         }
 
+        // Same one-shot pattern for the clipboard history default key (F2).
+        if !Defaults[.clipboardDefaultsApplied] {
+            Defaults[.clipboardHistoryShortcut] = KeyCombo(key: .f2, cocoaModifiers: [])
+            Defaults[.clipboardDefaultsApplied] = true
+        }
+
         // Bind global shortcut actions
         setupGlobalShortcutActions()
+
+        /*
+         The clipboard history monitor must poll from app launch on; this is
+         the Swift-side assembly point already invoked by
+         applicationDidFinishLaunching.
+         */
+        MainActor.assumeIsolated {
+            ClipboardMonitor.shared.start()
+        }
     }
 }
 

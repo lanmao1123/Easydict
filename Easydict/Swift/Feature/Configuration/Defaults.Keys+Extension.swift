@@ -419,6 +419,11 @@ extension Defaults.Keys {
     static let colorPickerShortcut = Key<KeyCombo?>("EZColorPickerShortcutKey_keyHolder")
     /// One-shot flag: older installs get the SnipTools default keys too.
     static let snipToolsDefaultsApplied = Key<Bool>("EZSnipToolsDefaultKeysApplied", default: false)
+
+    static let clipboardHistoryShortcut = Key<KeyCombo?>("EZClipboardHistoryShortcutKey_keyHolder")
+    /// One-shot flag, independent of `snipToolsDefaultsApplied` so installs
+    /// that already ran that migration still receive the F2 default.
+    static let clipboardDefaultsApplied = Key<Bool>("EZClipboardDefaultKeysApplied", default: false)
     static let pasteboardOCRShortcut = Key<KeyCombo?>("EZPasteboardOCRShortcutKey_keyHolder")
     static let showOCRWindowShortcut = Key<KeyCombo?>("EZShowOCRWindowShortcutKey_keyHolder")
 
