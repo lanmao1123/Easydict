@@ -78,6 +78,7 @@ extension ShortcutManager {
     func bindingGlobalShortcutAction(keyCombo: KeyCombo?, action: ShortcutAction) {
         HotKeyCenter.shared.unregisterHotKey(with: action.rawValue)
         FunctionKeyHotKeyCenter.unregister(identifier: action.rawValue)
+        MenuSafeHotKeyChannel.shared.unenroll(identifier: action.rawValue)
 
         // Ensure the action is a global action and keyCombo is valid
         guard let keyCombo, action.isGlobal else {
@@ -92,9 +93,33 @@ extension ShortcutManager {
          */
         if !keyCombo.doubledModifiers,
            keyCombo.modifiers == Int(NSEvent.ModifierFlags.function.rawValue) {
+            let keyCode = Int(keyCombo.currentKeyCode)
+
+            /*
+             Carbon hotkeys are dead while any menu is tracking (the press
+             looks swallowed), so also enroll the key in the menu-safe
+             channel. The screenshot action gets its menu-content frame
+             captured before the channel dismisses the popup.
+             */
+            MenuSafeHotKeyChannel.shared.enroll(
+                identifier: action.rawValue,
+                keyCode: keyCode,
+                capturesFrozenFrame: action == .snipToolsEditScreen
+            ) { presets in
+                if action == .snipToolsEditScreen {
+                    Task { @MainActor in
+                        await SnipToolsManager.shared.startScreenshotEdit(
+                            presetFrozenImages: presets
+                        )
+                    }
+                } else {
+                    action.executeAction()
+                }
+            }
+
             FunctionKeyHotKeyCenter.register(
                 identifier: action.rawValue,
-                keyCode: Int(keyCombo.currentKeyCode)
+                keyCode: keyCode
             ) {
                 action.executeAction()
             }

@@ -12,6 +12,8 @@ import Magnet
 // MARK: - ShortcutManager
 
 class ShortcutManager: NSObject {
+    // MARK: Internal
+
     @objc static let shared = ShortcutManager()
 
     var confictShortcutTitle = ""
@@ -42,6 +44,10 @@ class ShortcutManager: NSObject {
         // Bind global shortcut actions
         setupGlobalShortcutActions()
 
+        #if DEBUG
+        installMenuSafeDebugHooks()
+        #endif
+
         /*
          The clipboard history monitor must poll from app launch on; this is
          the Swift-side assembly point already invoked by
@@ -51,6 +57,30 @@ class ShortcutManager: NSObject {
             ClipboardMonitor.shared.start()
         }
     }
+
+    // MARK: Private
+
+    #if DEBUG
+    /// Headless-verification hooks: a DistributedNotification from the
+    /// terminal drives the exact menu-safe dispatch path without real keys.
+    private func installMenuSafeDebugHooks() {
+        let center = DistributedNotificationCenter.default()
+        for (name, keyCode) in [
+            ("com.izual.Easydict.debugMenuSafeFireF1", 122), // F1
+            ("com.izual.Easydict.debugMenuSafeFireF2", 120), // F2
+        ] {
+            center.addObserver(
+                forName: Notification.Name(name),
+                object: nil,
+                queue: nil
+            ) { _ in
+                NSLog("[MenuSafeHotKey] DEBUG fire via notification, keyCode=%d", keyCode)
+                MenuSafeHotKeyChannel.shared.debugFire(forKeyCode: keyCode)
+            }
+        }
+        NSLog("[MenuSafeHotKey] DEBUG notification hooks installed")
+    }
+    #endif
 }
 
 // MARK: - Update Menu action

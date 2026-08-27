@@ -18,6 +18,7 @@ class ScreenshotState: ObservableObject {
         self.isTipVisible = !MyConfiguration.shared.isScreenshotTipLayerHidden
             && !Screenshot.shared.lastScreenshotRect.isEmpty
 
+        updateCursorPosition()
         updateHideDarkOverlay()
         setupMouseMovedMonitor()
     }
@@ -44,6 +45,12 @@ class ScreenshotState: ObservableObject {
 
     /// Whether the mouse has moved since capture started
     @Published var isMouseMoved = false
+
+    /// Live pointer position in screen-local top-left coordinates, driving
+    /// the self-drawn crosshair. The system cursor is unreliable here: with
+    /// Accessibility pointer customization enabled, NSCursor.set() does not
+    /// take over the rendering, so the overlay draws its own crosshair.
+    @Published var cursorPosition: CGPoint?
 
     /// The currently selected rectangle for screenshot
     @Published var selectedRect = CGRect.zero
@@ -146,11 +153,16 @@ class ScreenshotState: ObservableObject {
          isn't active, especially when an overlay window is present under the cursor.
          Therefore, explicit NSApplication.shared.activate() is not strictly required
          for this specific monitor to function, unlike the keyDown monitor for ESC.
+         leftMouseDragged is included so the crosshair keeps following the pointer
+         while a selection drag is in progress.
          */
-        mouseMovedMonitor = NSEvent.addLocalMonitorForEvents(matching: .mouseMoved) { [weak self] event in
+        mouseMovedMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.mouseMoved, .leftMouseDragged]
+        ) { [weak self] event in
             guard let self else { return event }
 
             isMouseMoved = true
+            updateCursorPosition()
             updateHideDarkOverlay()
 
             guard !MyConfiguration.shared.isScreenshotTipLayerHidden else {
@@ -171,5 +183,27 @@ class ScreenshotState: ObservableObject {
             // Pass the event to the next screen monitor
             return event
         }
+    }
+
+    /// Tracks the pointer in this screen's top-left coordinates for the
+    /// self-drawn crosshair; nil while the pointer is on another screen.
+    private func updateCursorPosition() {
+        let global = NSEvent.mouseLocation // bottom-left origin, global
+
+        /*
+         CGRect.contains treats the upper bounds as exclusive, so a pointer
+         pushed against the menu bar reads as "outside" and would hide the
+         crosshair. Widen the test and clamp the stored point into the screen
+         instead; the crosshair view nudges itself fully inside as well.
+         */
+        let padded = screen.frame.insetBy(dx: -4, dy: -4)
+        guard padded.contains(global) else {
+            cursorPosition = nil
+            return
+        }
+        cursorPosition = CGPoint(
+            x: min(max(global.x - screen.frame.minX, 0), screen.frame.width - 1),
+            y: min(max(screen.frame.maxY - global.y, 0), screen.frame.height - 1)
+        )
     }
 }

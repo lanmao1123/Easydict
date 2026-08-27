@@ -28,13 +28,16 @@ final class SnipToolsManager: NSObject {
     // MARK: Actions (bound from ShortcutAction)
 
     /// Takes a screenshot and enters annotation editing right after selection;
-    /// the composed image is copied to the pasteboard on confirm.
-    func startScreenshotEdit() async {
+    /// the composed image is copied to the pasteboard on confirm. When the
+    /// menu-safe channel triggers this while a status-bar menu is open,
+    /// `presetFrozenImages` carries frames captured with the menu still on
+    /// screen so the menu content survives into the shot.
+    func startScreenshotEdit(presetFrozenImages: [NSScreen: NSImage] = [:]) async {
         guard !Screenshot.shared.isTakingScreenshot else { return }
 
         Screenshot.shared.editModeEnabled = true
         await withCheckedContinuation { continuation in
-            Screenshot.shared.startCapture { image in
+            Screenshot.shared.startCapture(presetFrozenImages: presetFrozenImages) { image in
                 if let image {
                     image.writeToPasteboard()
                 }

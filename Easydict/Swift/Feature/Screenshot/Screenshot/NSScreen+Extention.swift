@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import ScreenCaptureKit
 
 extension NSScreen {
     /// Take screenshot of the specified area in the screen.
@@ -16,36 +17,142 @@ extension NSScreen {
         let rect = rect ?? bounds
         NSLog("Taking screenshot of rect: \(rect), screen: \(debugDescription)")
 
-        // Get screen's display ID
-        let screenNumber = deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
-        guard let displayID = screenNumber?.uint32Value else {
-            NSLog("Failed to get display ID for screen")
+        /*
+         ScreenCaptureKit first: a customized Accessibility pointer is a
+         Window Server overlay that leaks into window-list captures, and a
+         snipping tool must never show the pointer. SCK can exclude those
+         windows and the cursor itself; menus and every other layer stay in.
+         */
+        if #available(macOS 14.0, *) {
+            if let image = Self.sckCaptureSync(screen: self, rect: rect) {
+                return image
+            }
+            NSLog("ScreenCaptureKit capture failed, falling back to window list")
+        }
+
+        /*
+         CGWindowListCreateImage instead of CGDisplayCreateImage: the latter
+         silently omits open status-bar menus (and other high-layer popups).
+         `rect` arrives in top-left screen-local space; the list API wants
+         global bottom-left space.
+         */
+        let globalRect = CGRect(
+            x: frame.minX + rect.origin.x,
+            y: frame.maxY - rect.origin.y - rect.height,
+            width: rect.width,
+            height: rect.height
+        )
+        guard let capturedImage = CGWindowListCreateImage(
+            globalRect,
+            [.optionOnScreenOnly],
+            kCGNullWindowID,
+            [.bestResolution]
+        ) else {
+            NSLog("Failed to create window-list image, globalRect: \(globalRect)")
             return nil
         }
 
-        // Create a screenshot of the entire display
-        guard let displayImage = CGDisplayCreateImage(displayID) else {
-            NSLog("Failed to create display image")
+        return NSImage(cgImage: capturedImage, size: .zero)
+    }
+
+    /// ScreenCaptureKit capture that excludes cursor overlays. Synchronous
+    /// wrapper: the frame must exist before the overlay window can appear.
+    @available(macOS 14.0, *)
+    private static func sckCaptureSync(screen: NSScreen, rect: CGRect) -> NSImage? {
+        var result: NSImage?
+        let semaphore = DispatchSemaphore(value: 0)
+        Task.detached(priority: .userInitiated) {
+            result = await sckCapture(screen: screen, rect: rect)
+            semaphore.signal()
+        }
+        semaphore.wait()
+        return result
+    }
+
+    @available(macOS 14.0, *)
+    private static func sckCapture(screen: NSScreen, rect: CGRect) async -> NSImage? {
+        guard let displayID = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")]
+            as? CGDirectDisplayID
+        else { return nil }
+
+        do {
+            let content = try await Self.cachedShareableContent()
+            guard let display = content.displays.first(where: { $0.displayID == displayID }) else {
+                NSLog("SCK: display %d not found", displayID)
+                return nil
+            }
+
+            // The customized pointer renders as a Window Server window on a
+            // huge layer (owningApplication nil). Drop those; everything else
+            // — menus included — stays in the frame.
+            let cursorOverlays = content.windows.filter {
+                $0.owningApplication == nil && $0.windowLayer > 1_000_000
+            }
+            let filter = SCContentFilter(display: display, excludingWindows: cursorOverlays)
+            /*
+             Docs claim excluding-filters include the menu bar by default, but
+             on recent macOS the top bar is missing unless asked for — set it
+             explicitly so the status icons stay capturable.
+             */
+            if #available(macOS 14.2, *) {
+                filter.includeMenuBar = true
+            }
+
+            let scale = screen.backingScaleFactor
+            let config = SCStreamConfiguration()
+            // SCK sourceRect uses the same top-left screen-local space as rect.
+            config.sourceRect = rect
+            config.width = max(Int(rect.width * scale), 1)
+            config.height = max(Int(rect.height * scale), 1)
+            config.showsCursor = false
+            config.captureResolution = .best
+
+            let cgImage = try await SCScreenshotManager.captureImage(
+                contentFilter: filter, configuration: config
+            )
+            return NSImage(cgImage: cgImage, size: .zero)
+        } catch {
+            NSLog("SCK capture error: \(error)")
             return nil
         }
+    }
 
-        // Apply screen scale factor for Retina displays
-        let scaleFactor = backingScaleFactor
-        let scaledCropRect = CGRect(
-            x: rect.origin.x * scaleFactor,
-            y: rect.origin.y * scaleFactor,
-            width: rect.width * scaleFactor,
-            height: rect.height * scaleFactor
-        ).integral
+    /// The CG display backing this screen.
+    private var screenID: CGDirectDisplayID {
+        deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID
+            ?? CGMainDisplayID()
+    }
 
-        // Crop the image to the specified rect
-        guard let croppedImage = displayImage.cropping(to: scaledCropRect) else {
-            NSLog("Failed to crop display image")
-            return nil
+    // MARK: - SCShareableContent cache
+
+    @available(macOS 14.0, *) private static let shareableContentLock = NSLock()
+    @available(macOS 14.0, *) private nonisolated(unsafe) static var shareableContentCache: (
+        content: SCShareableContent, timestamp: Date
+    )?
+
+    /**
+     Enumerating shareable content costs tens to hundreds of milliseconds and
+     the capture flow needs it for every frame; a short-lived cache keeps
+     repeat captures (freeze frame, edits, retakes) snappy. Stale by at most
+     1.5 s, which only matters for cursor-overlay exclusion — a newly appeared
+     overlay within that window would slip into one frame, a cosmetic risk
+     worth the latency.
+     */
+    @available(macOS 14.0, *)
+    private static func cachedShareableContent() async throws -> SCShareableContent {
+        shareableContentLock.lock()
+        let cached = shareableContentCache
+        shareableContentLock.unlock()
+        if let cached, Date().timeIntervalSince(cached.timestamp) < 1.5 {
+            return cached.content
         }
-
-        let image = NSImage(cgImage: croppedImage, size: .zero)
-        return image
+        let fresh = try await SCShareableContent.excludingDesktopWindows(
+            false, onScreenWindowsOnly: true
+        )
+        shareableContentLock.lock()
+        shareableContentCache = (fresh, Date())
+        shareableContentLock.unlock()
+        return fresh
     }
 
     /// Crops a previously captured full-screen image to `rect` (top-left

@@ -81,6 +81,8 @@ struct ScreenshotOverlayView: View {
                 if !state.selectedRect.isEmpty {
                     selectionRectangleView
                 }
+
+                crosshairView
             }
 
             // Gesture recognition layer
@@ -89,6 +91,38 @@ struct ScreenshotOverlayView: View {
                 .frame(width: geometry.size.width, height: geometry.size.height)
                 .contentShape(Rectangle())
                 .gesture(drag)
+        }
+    }
+
+    /// Self-drawn crosshair following the pointer, Microsoft Snipping Tool
+    /// style. Drawn by the overlay because the system cursor cannot be
+    /// reliably restyled while Accessibility pointer customization is on —
+    /// NSCursor.set() is ignored by the customized pointer layer.
+    ///
+    /// The displayed center is nudged fully inside the screen: a pointer
+    /// hugging the menu bar would otherwise clip half the crosshair off the
+    /// window edge, where a thin line on the light menu bar reads as gone.
+    /// Selection math still uses the real pointer position.
+    private var crosshairView: some View {
+        GeometryReader { geometry in
+            Group {
+                if let pos = state.cursorPosition {
+                    let halfArm = 11.0
+                    let displayX = min(max(pos.x, halfArm), geometry.size.width - halfArm)
+                    let displayY = min(max(pos.y, halfArm), geometry.size.height - halfArm)
+
+                    CrosshairShape()
+                        .stroke(Color.black.opacity(0.85), lineWidth: 3)
+                        .frame(width: 22, height: 22)
+                        .position(x: displayX, y: displayY)
+
+                    CrosshairShape()
+                        .stroke(Color.white, lineWidth: 1.5)
+                        .frame(width: 22, height: 22)
+                        .position(x: displayX, y: displayY)
+                }
+            }
+            .allowsHitTesting(false)
         }
     }
 
@@ -246,6 +280,21 @@ struct ScreenshotOverlayView: View {
             // Cancel the screenshot process directly
             Screenshot.shared.finishCapture(nil)
         }
+    }
+}
+
+// MARK: - CrosshairShape
+
+/// Plus-shaped path centered in the proposed rect, for the selection crosshair.
+struct CrosshairShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        path.move(to: CGPoint(x: rect.minX, y: center.y))
+        path.addLine(to: CGPoint(x: rect.maxX, y: center.y))
+        path.move(to: CGPoint(x: center.x, y: rect.minY))
+        path.addLine(to: CGPoint(x: center.x, y: rect.maxY))
+        return path
     }
 }
 

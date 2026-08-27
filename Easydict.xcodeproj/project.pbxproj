@@ -417,6 +417,7 @@
 		0D0C4B0000000000000000AA /* PinImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000BA /* PinImageView.swift */; };
 		0D0C4B0000000000000000AB /* ColorPickerPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000BB /* ColorPickerPanel.swift */; };
 		0D0C4B0000000000000000D1 /* FunctionKeyHotKeyCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000D2 /* FunctionKeyHotKeyCenter.swift */; };
+		0D0C4B0000000000000000F2 /* MenuSafeHotKeyChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000F3 /* MenuSafeHotKeyChannel.swift */; };
 		0D0C4B0000000000000000AC /* AnnotationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000BC /* AnnotationModel.swift */; };
 		0D0C4B0000000000000000AD /* AnnotationComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000BD /* AnnotationComposer.swift */; };
 		0D0C4B0000000000000000AE /* MosaicRegionRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000BE /* MosaicRegionRenderer.swift */; };
@@ -1168,6 +1169,7 @@
 		0D0C4B0000000000000000BA /* PinImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinImageView.swift; sourceTree = "<group>"; };
 		0D0C4B0000000000000000BB /* ColorPickerPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorPickerPanel.swift; sourceTree = "<group>"; };
 		0D0C4B0000000000000000D2 /* FunctionKeyHotKeyCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FunctionKeyHotKeyCenter.swift; sourceTree = "<group>"; };
+		0D0C4B0000000000000000F3 /* MenuSafeHotKeyChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuSafeHotKeyChannel.swift; sourceTree = "<group>"; };
 		0D0C4B0000000000000000BC /* AnnotationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationModel.swift; sourceTree = "<group>"; };
 		0D0C4B0000000000000000BD /* AnnotationComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationComposer.swift; sourceTree = "<group>"; };
 		0D0C4B0000000000000000BE /* MosaicRegionRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MosaicRegionRenderer.swift; sourceTree = "<group>"; };
@@ -1766,6 +1768,7 @@
 				9643D9432B6FEF5F000FBEA6 /* ShortcutManager+Default.swift */,
 				9608354F2B6791F200C6A931 /* ShortcutManager+Validator.swift */,
 				0D0C4B0000000000000000D2 /* FunctionKeyHotKeyCenter.swift */,
+				0D0C4B0000000000000000F3 /* MenuSafeHotKeyChannel.swift */,
 				0333D4C22E5C6F1500CD4613 /* ShortcutAction.swift */,
 				0333D4C62E5CA38500CD4613 /* ActionConfiguration.swift */,
 				0333D4C82E5CA3F700CD4613 /* ShortcutConfictAlertMessage.swift */,
@@ -4456,6 +4459,7 @@
 				0D0C4B0000000000000000AF /* AnnotationCanvasView.swift in Sources */,
 				0D0C4B0000000000000000B0 /* EditToolbarView.swift in Sources */,
 				0D0C4B0000000000000000D1 /* FunctionKeyHotKeyCenter.swift in Sources */,
+				0D0C4B0000000000000000F2 /* MenuSafeHotKeyChannel.swift in Sources */,
 				03FEF1632D45D5C2002D5F28 /* HostWindowManager.swift in Sources */,
 				033363A0293A05D200FED9C8 /* EZSelectLanguageButton.m in Sources */,
 				960835502B6791F200C6A931 /* ShortcutManager+Validator.swift in Sources */,

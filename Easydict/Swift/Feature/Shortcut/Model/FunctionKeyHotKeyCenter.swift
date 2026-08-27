@@ -55,6 +55,7 @@ enum FunctionKeyHotKeyCenter {
 
         hotKeyRefs[identifier] = ref
         identifiersById[id] = identifier
+        keyCodesById[id] = keyCode
         handlersById[id] = handler
         NSLog("[Shortcut] Registered function-key hotkey, identifier=%@, keyCode=%d", identifier, keyCode)
     }
@@ -67,6 +68,7 @@ enum FunctionKeyHotKeyCenter {
         let staleIds = identifiersById.filter { $0.value == identifier }.map(\.key)
         for staleId in staleIds {
             identifiersById.removeValue(forKey: staleId)
+            keyCodesById.removeValue(forKey: staleId)
             handlersById.removeValue(forKey: staleId)
         }
     }
@@ -77,6 +79,7 @@ enum FunctionKeyHotKeyCenter {
 
     private static var hotKeyRefs: [String: EventHotKeyRef?] = [:]
     private static var identifiersById: [UInt32: String] = [:]
+    private static var keyCodesById: [UInt32: Int] = [:]
     private static var handlersById: [UInt32: @MainActor () -> ()] = [:]
     private static var nextId: UInt32 = 1
     private static var dispatcherRef: EventHandlerRef?
@@ -118,6 +121,15 @@ enum FunctionKeyHotKeyCenter {
         )
         let handler = MainActor.assumeIsolated {
             handlersById[id.id]
+        }
+        /*
+         A menu-safe enrollment exists for this same key; whichever channel
+         saw the physical press first claims it, so a menu-open press isn't
+         dispatched twice once the tap already handled it.
+         */
+        if let keyCode = keyCodesById[id.id],
+           !MenuSafeHotKeyChannel.shared.claimEmission(keyCode: keyCode) {
+            return noErr
         }
         if let handler {
             Task { @MainActor in

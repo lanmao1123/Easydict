@@ -21,8 +21,17 @@ class Screenshot: NSObject {
     @objc public private(set) var isTakingScreenshot = false
     @objc public var shouldRestorePreviousApp = false
 
+    /// Legacy ObjC entry point; no preset frames involved.
     @objc
     public func startCapture(completion: @escaping (NSImage?) -> ()) {
+        startCapture(presetFrozenImages: [:], completion: completion)
+    }
+
+    @objc
+    public func startCapture(
+        presetFrozenImages: [NSScreen: NSImage] = [:],
+        completion: @escaping (NSImage?) -> ()
+    ) {
         if isTakingScreenshot {
             completion(nil)
             return
@@ -46,9 +55,19 @@ class Screenshot: NSObject {
         }
 
         isTakingScreenshot = true
+
+        /*
+         A stray press on F2 right next to F1 can pop the clipboard panel at
+         the last moment; it would then sit over the screenshot, since both
+         live in this same app and hidesOnDeactivate never fires. Close it.
+         */
+        MainActor.assumeIsolated {
+            ClipboardManager.shared.hidePanel()
+        }
+
         pushCrosshairCursor()
         setupEventMonitor()
-        showOverlayWindow(completion: completion)
+        showOverlayWindow(presetFrozenImages: presetFrozenImages, completion: completion)
     }
 
     // MARK: Internal
@@ -201,6 +220,12 @@ class Screenshot: NSObject {
     private func pushCrosshairCursor() {
         guard !hasPushedCrosshairCursor else { return }
         NSCursor.crosshair.push()
+        /*
+         Also hide: with Accessibility pointer customization on, the rendered
+         pointer ignores NSCursor images, so without hiding it the old arrow
+         would sit next to the overlay's self-drawn crosshair.
+         */
+        NSCursor.hide()
         updateCrosshairCursor()
         hasPushedCrosshairCursor = true
     }
@@ -208,11 +233,15 @@ class Screenshot: NSObject {
     /// Pops the crosshair cursor from the cursor stack after capture finishes.
     private func popCrosshairCursor() {
         guard hasPushedCrosshairCursor else { return }
+        NSCursor.unhide()
         NSCursor.pop()
         hasPushedCrosshairCursor = false
     }
 
-    private func showOverlayWindow(completion: @escaping (NSImage?) -> ()) {
+    private func showOverlayWindow(
+        presetFrozenImages: [NSScreen: NSImage],
+        completion: @escaping (NSImage?) -> ()
+    ) {
         // Store the completion handler
         captureCompletionHandler = completion
 
@@ -224,7 +253,7 @@ class Screenshot: NSObject {
 
         // Show overlay window on each screen
         for screen in NSScreen.screens {
-            createOverlayWindow(for: screen)
+            createOverlayWindow(for: screen, presetFrozenImage: presetFrozenImages[screen])
         }
 
         /*
@@ -237,6 +266,13 @@ class Screenshot: NSObject {
          if another application was active when the screenshot started.
          */
         NSApplication.shared.activateApp()
+
+        /*
+         Cursor rects only apply on the next mouse move, so without this the
+         pointer keeps its old arrow until the user drags — the crosshair
+         must appear the instant the overlay does.
+         */
+        NSCursor.crosshair.set()
     }
 
     /// Removes transient screenshot state and releases any local event monitors it owns.
@@ -247,10 +283,15 @@ class Screenshot: NSObject {
         overlayViewStates.removeAll()
     }
 
-    private func createOverlayWindow(for screen: NSScreen) {
+    private func createOverlayWindow(for screen: NSScreen, presetFrozenImage: NSImage?) {
         let state = ScreenshotState(screen: screen)
-        // Freeze the clean display before our own window can appear in it.
-        state.frozenDisplayImage = screen.takeScreenshot()
+        /*
+         The menu-safe channel hands us a frame captured while the target menu
+         was still on screen; reuse it instead of re-shooting after the popup
+         is gone. Normal path freezes the clean display before our own window
+         can appear in it.
+         */
+        state.frozenDisplayImage = presetFrozenImage ?? screen.takeScreenshot()
 
         let window = ScreenshotOverlayWindow(
             contentRect: screen.frame,
