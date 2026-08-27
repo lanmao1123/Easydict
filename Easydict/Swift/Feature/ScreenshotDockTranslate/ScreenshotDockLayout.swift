@@ -12,19 +12,25 @@ import Foundation
 ///
 /// Screenshot selections are stored in screen-local coordinates with a top-left
 /// origin, while AppKit windows use global bottom-left coordinates. These helpers
-/// keep the conversion and dock placement logic in one testable place, free of
-/// AppKit dependencies.
+/// keep the conversion and per-block overlay placement logic in one testable
+/// place, free of AppKit dependencies.
 enum ScreenshotDockLayout {
     // MARK: Constants
 
-    /// Fixed panel width in points.
-    static let panelWidth: CGFloat = 360
-
-    /// Horizontal gap between the panel edge and the selection edge.
-    static let panelGap: CGFloat = 12
-
     /// Extra inset kept inside the screen visible frame when clamping.
     static let screenMargin: CGFloat = 8
+
+    /// Vertical gap between a source block edge and its translation overlay.
+    static let overlayGap: CGFloat = 8
+
+    /// Smallest readable overlay width when the selection is very narrow.
+    static let minOverlayWidth: CGFloat = 240
+
+    /// Widest overlay width so a full-width selection stays readable.
+    static let maxOverlayWidth: CGFloat = 900
+
+    /// Overlay width before geometry is known.
+    static let defaultOverlayWidth: CGFloat = 360
 
     // MARK: Conversion
 
@@ -49,40 +55,49 @@ enum ScreenshotDockLayout {
 
     // MARK: Placement
 
-    /// Computes the docked panel origin point beside the selection rect.
-    ///
-    /// Prefers the right side of the selection and falls back to the left side
-    /// when there is not enough room. The panel is then top-aligned with the
-    /// selection and clamped into the visible frame so it always stays fully
-    /// reachable on screen.
+    /// Overlay width mirroring the selection width, clamped to readable bounds.
+    static func overlayWidth(forSelectionWidth selectionWidth: CGFloat) -> CGFloat {
+        min(max(selectionWidth, minOverlayWidth), maxOverlayWidth)
+    }
+
+    /// Computes the overlay origin docked against the selection, Youdao
+    /// "对照"-style: the overlay sits directly below the selection when there is
+    /// room, otherwise directly above it; when neither side fully fits, the side
+    /// with more room wins and the origin is clamped into the visible frame.
     /// - Parameters:
-    ///   - panelSize: Desired size of the panel.
+    ///   - contentSize: Desired size of the overlay.
     ///   - selectionGlobalRect: Global bottom-left-origin selection rect.
     ///   - visibleFrame: Visible frame (excluding menu bar and dock) to clamp into.
-    /// - Returns: The clamped window origin (bottom-left corner of the panel in
+    /// - Returns: The clamped window origin (bottom-left corner of the overlay in
     ///   AppKit global coordinates), ready for `setFrameOrigin`.
-    static func dockedPanelOrigin(
-        panelSize: CGSize,
+    static func overlayOrigin(
+        contentSize: CGSize,
         selectionGlobalRect: CGRect,
         visibleFrame: NSRect
     )
         -> CGPoint {
         let innerBounds = visibleFrame.insetBy(dx: screenMargin, dy: screenMargin)
 
-        // Prefer the right side of the selection, fall back to the left side.
-        var x = selectionGlobalRect.maxX + panelGap
-        if x + panelSize.width > innerBounds.maxX {
-            x = selectionGlobalRect.minX - panelGap - panelSize.width
+        // Align the overlay's left edge with the selection, clamped inside.
+        var x = selectionGlobalRect.minX
+        x = min(
+            max(x, innerBounds.minX),
+            max(innerBounds.minX, innerBounds.maxX - contentSize.width)
+        )
+
+        // Prefer directly below the selection; flip above when the content
+        // cannot fit below and there is more room above.
+        let spaceBelow = selectionGlobalRect.minY - overlayGap - innerBounds.minY
+        let spaceAbove = innerBounds.maxY - overlayGap - selectionGlobalRect.maxY
+        var y = selectionGlobalRect.minY - overlayGap - contentSize.height
+        if contentSize.height > spaceBelow, spaceAbove > spaceBelow {
+            y = selectionGlobalRect.maxY + overlayGap
         }
 
-        // Top-align with the selection, then keep the whole panel inside by
-        // capping the origin against both vertical edges.
-        var y = selectionGlobalRect.maxY - panelSize.height
-        y = min(y, max(innerBounds.minY, innerBounds.maxY - panelSize.height))
-        y = max(y, innerBounds.minY)
-
-        // When neither side fits, keep the panel visible instead of overlapping deeper.
-        x = max(x, innerBounds.minX)
+        // Keep the whole overlay inside the visible frame when neither side fits.
+        let lowest = innerBounds.minY
+        let highest = max(lowest, innerBounds.maxY - contentSize.height)
+        y = min(max(y, lowest), highest)
 
         return CGPoint(x: x, y: y)
     }

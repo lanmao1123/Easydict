@@ -6,17 +6,17 @@
 //  Copyright © 2026 izual. All rights reserved.
 //
 
-import AppKit
 import SwiftUI
 
 // MARK: - ScreenshotDockState
 
-/// Observable state driving the phases of the dock panel UI.
+/// Observable state driving the phases of the dock overlay UI.
 ///
-/// The manager transitions the phase from recognizing to translating, then to
-/// either the final result or a failure; the view stays a plain function of it.
+/// Mirrors the Youdao "对照" experience: the original pixels stay untouched on
+/// screen while translated blocks, one per recognized source segment, fill the
+/// overlay in source order.
 final class ScreenshotDockState: NSObject, ObservableObject {
-    /// UI phases of the panel, from capture feedback to final outcome.
+    /// UI phases of the overlay, from capture feedback to final outcome.
     enum Phase: Equatable {
         case recognizing
         case translating
@@ -25,77 +25,57 @@ final class ScreenshotDockState: NSObject, ObservableObject {
     }
 
     @Published var phase: Phase = .recognizing
-    @Published var sourceText = ""
-    @Published var translatedText = ""
+    /// Translated blocks in source segment order, appended as each finishes.
+    @Published var translatedBlocks: [String] = []
+    /// Number of source segments still waiting for their translation.
+    @Published var pendingCount = 0
     @Published var failureDetail = ""
-    @Published var isCopied = false
+    /// Overlay width tracks the selection width, set by the manager per capture.
+    @Published var overlayWidth: CGFloat = ScreenshotDockLayout.defaultOverlayWidth
 
-    /// Copies the translated text to the pasteboard and flashes the copy button.
-    func copyTranslatedText() {
-        guard !translatedText.isEmpty else { return }
-
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(translatedText, forType: .string)
-
-        isCopied = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-            self?.isCopied = false
-        }
-    }
-
-    /// Resets every field so the panel can be reused for the next capture.
+    /// Resets every field so the overlay can be reused for the next capture.
     func reset() {
         phase = .recognizing
-        sourceText = ""
-        translatedText = ""
+        translatedBlocks = []
+        pendingCount = 0
         failureDetail = ""
-        isCopied = false
+        overlayWidth = ScreenshotDockLayout.defaultOverlayWidth
     }
 }
 
 // MARK: - ScreenshotDockView
 
-/// Content view of the floating panel: loading, source preview plus translated
-/// text, or a failure card.
+/// Content view of the floating overlay: translated paragraph blocks stacked in
+/// source order, plus inline loading and failure feedback.
 struct ScreenshotDockView: View {
     // MARK: Internal
 
     @ObservedObject var state: ScreenshotDockState
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            switch state.phase {
-            case .recognizing:
-                LoadingRow(textKey: "screenshot_dock_recognizing")
-            case .translating:
-                sourcePreview
-                Divider()
-                LoadingRow(textKey: "screenshot_dock_translating")
-            case .result:
-                HStack(alignment: .top, spacing: 8) {
-                    sourcePreview
-                    Spacer(minLength: 0)
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 10) {
+                switch state.phase {
+                case .recognizing:
+                    LoadingRow(textKey: "screenshot_dock_recognizing")
+                case .failed, .result, .translating:
+                    ForEach(Array(state.translatedBlocks.enumerated()), id: \.offset) { _, block in
+                        Text(block)
+                            .font(.system(size: 14))
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if state.pendingCount > 0 {
+                        LoadingRow(textKey: "screenshot_dock_translating")
+                    }
+                    if state.phase == .failed {
+                        failureCard
+                    }
                 }
-                Divider()
-                HStack(spacing: 8) {
-                    Text("screenshot_dock_translated")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                    Spacer(minLength: 0)
-                    copyButton
-                }
-                Text(state.translatedText)
-                    .font(.system(size: 15))
-                    .textSelection(.enabled)
-                    .lineLimit(maxTranslatedLines)
-                    .fixedSize(horizontal: false, vertical: true)
-            case .failed:
-                failureCard
             }
+            .padding(12)
+            .frame(width: state.overlayWidth, alignment: .leading)
         }
-        .padding(14)
-        .frame(width: ScreenshotDockLayout.panelWidth, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color(nsColor: .windowBackgroundColor))
@@ -107,35 +87,6 @@ struct ScreenshotDockView: View {
     }
 
     // MARK: Private
-
-    private let maxSourceLines = 3
-    private let maxTranslatedLines = 24
-
-    /// Short quote of the recognized text; the original stays fully readable
-    /// on screen right beside the panel, so only a preview lives here.
-    private var sourcePreview: some View {
-        Text(state.sourceText)
-            .font(.system(size: 12))
-            .foregroundStyle(.secondary)
-            .lineLimit(maxSourceLines)
-            .truncationMode(.tail)
-    }
-
-    private var copyButton: some View {
-        Button {
-            state.copyTranslatedText()
-        } label: {
-            Label(
-                state.isCopied ? "screenshot_dock_copied" : "screenshot_dock_copy",
-                systemSymbol: state.isCopied ? .checkmark : .docOnDoc
-            )
-            .labelStyle(.titleAndIcon)
-            .font(.system(size: 11))
-            .foregroundStyle(state.isCopied ? Color.green : Color.secondary)
-        }
-        .buttonStyle(.plain)
-        .help(Text("screenshot_dock_copy"))
-    }
 
     private var failureCard: some View {
         VStack(alignment: .leading, spacing: 6) {
