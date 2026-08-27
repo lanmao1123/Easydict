@@ -25,7 +25,7 @@ final class ClipboardPanel: NSPanel {
         self.viewModel = viewModel
 
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 720, height: 480),
+            contentRect: NSRect(origin: .zero, size: Self.preferredSize()),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -55,6 +55,16 @@ final class ClipboardPanel: NSPanel {
     override func orderOut(_ sender: Any?) {
         super.orderOut(sender)
         removeKeyMonitor()
+    }
+
+    /// Generous Spotlight-like footprint, clamped to the visible frame so
+    /// small displays never get an oversized panel.
+    static func preferredSize() -> NSSize {
+        let visible = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        return NSSize(
+            width: min(920, visible.width * 0.72),
+            height: min(640, visible.height * 0.76)
+        )
     }
 
     /// Centers the panel in the upper third of the main screen, Spotlight
@@ -95,13 +105,12 @@ final class ClipboardPanel: NSPanel {
     private func positionOnScreen() {
         guard let screen = NSScreen.main else { return }
         let visible = screen.visibleFrame
-        let width: CGFloat = 720
-        let height: CGFloat = 480
+        let size = Self.preferredSize()
         let origin = CGPoint(
-            x: visible.midX - width / 2,
-            y: visible.maxY - visible.height * 0.22 - height
+            x: visible.midX - size.width / 2,
+            y: visible.maxY - visible.height * 0.18 - size.height
         )
-        setFrame(CGRect(origin: origin, size: CGSize(width: width, height: height)), display: true)
+        setFrame(CGRect(origin: origin, size: size), display: true)
     }
 
     /*

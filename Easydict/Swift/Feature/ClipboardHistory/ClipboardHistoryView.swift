@@ -183,10 +183,19 @@ struct ClipboardHistoryView: View {
             Divider()
             footerHints
         }
-        .frame(width: 720, height: 480)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color(nsColor: .windowBackgroundColor))
+                /*
+                 The panel floats over arbitrary content; a hairline border in
+                 the adaptive label color keeps the edge readable on white
+                 pages (light mode) and dark pages (dark mode) alike.
+                 */
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(Color.primary.opacity(0.30), lineWidth: 1)
+                )
                 .shadow(color: .black.opacity(0.30), radius: 18, y: 6)
         )
         .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -242,7 +251,7 @@ struct ClipboardHistoryView: View {
                 entryList
                 Divider()
                 previewPane
-                    .frame(width: 250)
+                    .frame(minWidth: 300, maxWidth: 380)
             }
         }
     }
@@ -429,13 +438,15 @@ private struct ClipboardPreviewPane: View {
     private var content: some View {
         switch entry.kind {
         case .text:
-            ScrollView {
-                Text(entry.text ?? entry.preview)
-                    .font(.system(size: 12))
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-            }
+            /*
+             A plain NSTextView, not SwiftUI Text: users need to select a few
+             words out of the preview to copy, and text selection inside this
+             key-window panel proved unreliable with the SwiftUI wrapper.
+             The fill frame keeps text anchored at the top of the pane.
+             */
+            SelectableTextView(text: entry.text ?? entry.preview)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .padding(12)
         case .image:
             if let url = ClipboardMonitor.shared.store?.imageURL(for: entry),
                let image = NSImage(contentsOf: url) {
@@ -479,6 +490,48 @@ private struct ClipboardPreviewPane: View {
             Spacer()
             Text(value)
                 .font(.system(size: 11, weight: .medium))
+        }
+    }
+}
+
+// MARK: - SelectableTextView
+
+/// Read-only AppKit text view for the preview pane: natively selectable so
+/// users can highlight and copy individual words out of a history entry.
+private struct SelectableTextView: NSViewRepresentable {
+    let text: String
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let textView = NSTextView()
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.drawsBackground = false
+        textView.isRichText = false
+        textView.font = .systemFont(ofSize: 13)
+        textView.textColor = .labelColor
+        textView.textContainerInset = .zero
+        textView.isVerticallyResizable = true
+        textView.autoresizingMask = [.width]
+        textView.textContainer?.widthTracksTextView = true
+        textView.string = text
+
+        /*
+         Bare NSTextView shrinks to its content height with the bottom-left
+         origin fixed, so it drifts to the bottom of the pane. As a scroll
+         view's document it stays anchored to the top and long text scrolls.
+         */
+        let scrollView = NSScrollView()
+        scrollView.documentView = textView
+        scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = true
+        scrollView.drawsBackground = false
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        guard let textView = scrollView.documentView as? NSTextView else { return }
+        if textView.string != text {
+            textView.string = text
         }
     }
 }

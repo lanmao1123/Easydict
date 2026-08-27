@@ -27,6 +27,16 @@ final class ClipboardManager: NSObject {
     static let shared = ClipboardManager()
 
     func togglePanel() {
+        /*
+         During a capture session a keypress aimed at F3 (pin) can land on
+         the adjacent F2; a clipboard panel popping over the screenshot is
+         pure interference, so the hotkey stays dead until capture finishes.
+         */
+        if Screenshot.shared.isTakingScreenshot {
+            NSLog("[Clipboard] Panel toggle ignored during screenshot session")
+            return
+        }
+
         if panel?.isVisible == true {
             hidePanel()
         } else {
