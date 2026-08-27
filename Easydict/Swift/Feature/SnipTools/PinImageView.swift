@@ -27,6 +27,9 @@ final class PinImageState: ObservableObject {
     /// Current zoom factor, clamped to readable bounds.
     @Published private(set) var scale: CGFloat = 1
 
+    /// True while the pin's panel is the key window, i.e. "selected".
+    @Published var isFocused = false
+
     /// Invoked by double-click from the view; wired to the owning panel.
     var onCloseRequest: (() -> ())?
 
@@ -65,6 +68,12 @@ struct PinImageView: View {
             .resizable()
             .scaledToFit()
             .frame(width: state.displaySize.width, height: state.displaySize.height)
+            // A focused pin shows an accent outline so "selected" is visible,
+            // matching the click-to-select semantics ⌘C relies on.
+            .overlay(
+                RoundedRectangle(cornerRadius: 2)
+                    .strokeBorder(Color.accentColor.opacity(state.isFocused ? 0.9 : 0), lineWidth: 2)
+            )
             .onTapGesture(count: 2) {
                 state.onCloseRequest?()
             }

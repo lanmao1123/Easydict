@@ -11,9 +11,11 @@ import SwiftUI
 
 /// Borderless floating panel that pins an image on screen, Snipaste-style.
 ///
-/// Never becomes key or main, so showing it does not steal focus; supports
-/// background dragging, wheel zooming through `PinImageHostingView` and
-/// double-click close through `PinImageView`.
+/// `.nonactivatingPanel` keeps the frontmost app running, yet the pin can
+/// still become key on click — that "selected" state is what routes ⌘C to
+/// the pin's own copy handler. Supports background dragging, wheel zooming
+/// through `PinImageHostingView` and double-click close through
+/// `PinImageView`.
 final class PinImagePanel: NSPanel {
     // MARK: Lifecycle
 
@@ -50,11 +52,21 @@ final class PinImagePanel: NSPanel {
 
     // MARK: Override
 
-    override var canBecomeKey: Bool { false }
+    override var canBecomeKey: Bool { true }
 
     override var canBecomeMain: Bool { false }
 
     let state: PinImageState
+
+    override func becomeKey() {
+        super.becomeKey()
+        state.isFocused = true
+    }
+
+    override func resignKey() {
+        super.resignKey()
+        state.isFocused = false
+    }
 
     /// Resizes the frame while keeping the point under the cursor fixed, so
     /// both wheel zoom and trackpad pinch feel anchored where you point.

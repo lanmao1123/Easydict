@@ -65,7 +65,7 @@ final class PinImageManager: NSObject {
         panel.orderFrontRegardless()
 
         installESCHotKeyIfNeeded()
-        installMagnifyMonitorIfNeeded()
+        installEventMonitorsIfNeeded()
     }
 
     /// Closes one pinned panel and releases it fully.
@@ -76,7 +76,7 @@ final class PinImageManager: NSObject {
 
         if pins.isEmpty {
             removeESCHotKey()
-            removeMagnifyMonitor()
+            removeEventMonitors()
         }
     }
 
@@ -89,13 +89,19 @@ final class PinImageManager: NSObject {
             panel.close()
         }
         removeESCHotKey()
-        removeMagnifyMonitor()
+        removeEventMonitors()
     }
 
     // MARK: ESC close
 
-    /// ESC closes the pin under the cursor, falling back to the newest one.
+    /// ESC closes the focused pin first, then the one under the cursor, and
+    /// finally falls back to the newest one.
     func closePinOnESC() {
+        if let focused = pins.first(where: { $0.isKeyWindow }) {
+            remove(focused)
+            return
+        }
+
         let mouse = NSEvent.mouseLocation
         if let target = pins.last(where: { NSPointInRect(mouse, $0.frame) }) {
             remove(target)
@@ -116,6 +122,9 @@ final class PinImageManager: NSObject {
 
     /// Local monitor feeding trackpad pinch zooms, alive while pins exist.
     private var magnifyMonitor: Any?
+
+    /// Local monitor copying the focused pin on ⌘C, alive while pins exist.
+    private var keyDownMonitor: Any?
 
     /// Registers a Carbon ESC hotkey while pins exist. Pins never become key
     /// windows, and NSEvent global key monitors require accessibility
@@ -139,13 +148,29 @@ final class PinImageManager: NSObject {
         escHotKeyActive = false
     }
 
-    // MARK: Trackpad pinch zoom
+    // MARK: Event monitors
 
     /*
      SwiftUI internals swallow `magnify` events inside the hosting view, so
      subclass overrides never see them. This local monitor sits upstream of
      view dispatch and zooms the pin under the cursor directly.
      */
+    private func installEventMonitorsIfNeeded() {
+        installMagnifyMonitorIfNeeded()
+        installKeyDownMonitorIfNeeded()
+    }
+
+    private func removeEventMonitors() {
+        if let magnifyMonitor {
+            NSEvent.removeMonitor(magnifyMonitor)
+            self.magnifyMonitor = nil
+        }
+        if let keyDownMonitor {
+            NSEvent.removeMonitor(keyDownMonitor)
+            self.keyDownMonitor = nil
+        }
+    }
+
     private func installMagnifyMonitorIfNeeded() {
         guard magnifyMonitor == nil else { return }
 
@@ -159,11 +184,35 @@ final class PinImageManager: NSObject {
         Self.log.info("[SnipTools] Pin magnify monitor installed")
     }
 
-    private func removeMagnifyMonitor() {
-        if let magnifyMonitor {
-            NSEvent.removeMonitor(magnifyMonitor)
-            self.magnifyMonitor = nil
+    /*
+     A focused pin's ⌘C must not fall through to the frontmost app's menu bar
+     copy action, which would copy whatever that app has selected instead. A
+     local keyDown monitor sits upstream of menu dispatch and sees keys only
+     while a pin is the key window, so this stays scoped to pins.
+     */
+    private func installKeyDownMonitorIfNeeded() {
+        guard keyDownMonitor == nil else { return }
+
+        keyDownMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
+            guard let self else { return event }
+            return MainActor.assumeIsolated {
+                self.handleKeyDown(event)
+            }
         }
+        Self.log.info("[SnipTools] Pin keyDown monitor installed")
+    }
+
+    /// Handles ⌘C over a focused pin by writing its image back to the
+    /// pasteboard; every other key passes through untouched.
+    private func handleKeyDown(_ event: NSEvent) -> NSEvent? {
+        guard let panel = event.window as? PinImagePanel else { return event }
+
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        guard flags == .command, event.keyCode == kVK_ANSI_C else { return event }
+
+        panel.state.image.writeToPasteboard()
+        Self.log.info("[SnipTools] Pin image copied via ⌘C")
+        return nil
     }
 
     /// Zooms the pin under the cursor by the pinch's incremental factor.
@@ -180,12 +229,12 @@ final class PinImageManager: NSObject {
 
     /// ESC routing: the hotkey consumed the key system-wide, so when a
     /// capture session is running reproduce its ESC behavior (discard text
-    /// draft / cancel capture); otherwise close the pin under the cursor.
+    /// draft / cancel capture); otherwise close the focused pin.
     private func handleESC() {
         if Screenshot.shared.isTakingScreenshot {
             if let editor = Screenshot.shared.activeAnnotationEditor,
                editor.textDraftPoint != nil {
-                editor.commitText("")
+                editor.discardText()
             } else {
                 Screenshot.shared.finishCapture(nil)
             }
