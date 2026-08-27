@@ -420,7 +420,13 @@ extension Defaults.Keys {
     /// One-shot flag: older installs get the SnipTools default keys too.
     static let snipToolsDefaultsApplied = Key<Bool>("EZSnipToolsDefaultKeysApplied", default: false)
 
-    static let clipboardHistoryShortcut = Key<KeyCombo?>("EZClipboardHistoryShortcutKey_keyHolder")
+    /// Carries the F2 default inline: the one-shot migration proved flaky
+    /// (applied flag persisted, key did not), and a `default:` value makes
+    /// every launch self-healing.
+    static let clipboardHistoryShortcut = Key<KeyCombo?>(
+        "EZClipboardHistoryShortcutKey_keyHolder",
+        default: KeyCombo(key: .f2, cocoaModifiers: [])
+    )
     /// One-shot flag, independent of `snipToolsDefaultsApplied` so installs
     /// that already ran that migration still receive the F2 default.
     static let clipboardDefaultsApplied = Key<Bool>("EZClipboardDefaultKeysApplied", default: false)
