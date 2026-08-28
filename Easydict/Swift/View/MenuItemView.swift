@@ -27,17 +27,6 @@ struct MenuItemView: View {
 
             Divider()
 
-            inputItem.keyboardShortcut(.inputTranslate)
-            screenshotItem.keyboardShortcut(.snipTranslate)
-            selectWordItem.keyboardShortcut(.selectTranslate)
-            pasteboardTranslateItem.keyboardShortcut(.pasteboardTranslate)
-            polishAndReplaceItem.keyboardShortcut(.polishAndReplace)
-            translateAndReplaceItem.keyboardShortcut(.translateAndReplace)
-            miniWindowItem.keyboardShortcut(.showMiniWindow)
-
-            Divider()
-
-            silentScreenshotOCRItem.keyboardShortcut(.silentScreenshotOCR)
             screenshotDockTranslateItem.keyboardShortcut(.screenshotDockTranslate)
 
             Divider()
@@ -47,12 +36,12 @@ struct MenuItemView: View {
             copyImagePathItem.keyboardShortcut(.copyImagePath)
             colorPickerItem.keyboardShortcut(.colorPicker)
             clipboardHistoryItem.keyboardShortcut(.clipboardHistory)
+            closeAllPinsItem
 
-            if showOCRMenuItems {
-                screenshotOCRItem
-                pasteboardOCRItem
-                showOCRWindowItem
-            }
+            screenshotOCRItem
+            pasteboardOCRItem
+            showOCRWindowItem
+            silentScreenshotOCRItem
 
             Divider()
 
@@ -69,12 +58,6 @@ struct MenuItemView: View {
         }
     }
 
-    // MARK: - Menu Items
-
-    @ViewBuilder var inputItem: some View {
-        menuItem(for: .inputTranslate)
-    }
-
     // MARK: Private
 
     @ObservedObject private var store = MenuItemStore()
@@ -86,8 +69,6 @@ struct MenuItemView: View {
 
     @Environment(\.openURL) private var openURL
 
-    @Default(.showOCRMenuItems) private var showOCRMenuItems
-
     private var versionString: String {
         let defaultLabel = "Easydict  \(currentVersion)"
         if let latestVersion,
@@ -96,34 +77,6 @@ struct MenuItemView: View {
         } else {
             return defaultLabel
         }
-    }
-
-    @ViewBuilder private var screenshotItem: some View {
-        menuItem(for: .snipTranslate)
-    }
-
-    @ViewBuilder private var selectWordItem: some View {
-        menuItem(for: .selectTranslate)
-    }
-
-    @ViewBuilder private var pasteboardTranslateItem: some View {
-        menuItem(for: .pasteboardTranslate)
-    }
-
-    @ViewBuilder private var polishAndReplaceItem: some View {
-        menuItem(for: .polishAndReplace)
-    }
-
-    @ViewBuilder private var translateAndReplaceItem: some View {
-        menuItem(for: .translateAndReplace)
-    }
-
-    @ViewBuilder private var miniWindowItem: some View {
-        menuItem(for: .showMiniWindow)
-    }
-
-    @ViewBuilder private var silentScreenshotOCRItem: some View {
-        menuItem(for: .silentScreenshotOCR)
     }
 
     @ViewBuilder private var screenshotDockTranslateItem: some View {
@@ -150,6 +103,19 @@ struct MenuItemView: View {
         menuItem(for: .clipboardHistory)
     }
 
+    /// Only reachable when pins exist; closes every pinned image at once.
+    @ViewBuilder private var closeAllPinsItem: some View {
+        Button {
+            logInfo("Menu Action: menu_close_all_pins")
+            PinImageManager.shared.closeAll()
+        } label: {
+            HStack {
+                Image(systemSymbol: .pinSlash)
+                Text(LocalizedStringKey("menu_close_all_pins"))
+            }
+        }
+    }
+
     @ViewBuilder private var screenshotOCRItem: some View {
         menuItem(for: .screenshotOCR)
     }
@@ -160,6 +126,10 @@ struct MenuItemView: View {
 
     @ViewBuilder private var showOCRWindowItem: some View {
         menuItem(for: .showOCRWindow)
+    }
+
+    @ViewBuilder private var silentScreenshotOCRItem: some View {
+        menuItem(for: .silentScreenshotOCR)
     }
 
     // MARK: - Other Items

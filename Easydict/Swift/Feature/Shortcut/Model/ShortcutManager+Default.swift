@@ -19,27 +19,11 @@ extension ShortcutManager {
     }
 
     private func setDefaultGlobalShortcutKeys() {
-        Defaults[.inputShortcut] = KeyCombo(key: .a, cocoaModifiers: .option)
-        Defaults[.snipShortcut] = KeyCombo(key: .s, cocoaModifiers: .option)
-        Defaults[.selectionShortcut] = KeyCombo(key: .d, cocoaModifiers: .option)
-        Defaults[.showMiniWindowShortcut] = KeyCombo(key: .f, cocoaModifiers: .option)
-        Defaults[.silentScreenshotOCRShortcut] = KeyCombo(
-            key: .s, cocoaModifiers: [.option, .shift]
-        )
-        Defaults[.screenshotDockTranslateShortcut] = KeyCombo(
-            key: .x, cocoaModifiers: .option
-        )
-        setSnipToolsDefaultKeys()
-    }
-
-    /// Default keys for the SnipTools actions; shared by first launch and by
-    /// the one-shot migration that back-fills older installs.
-    func setSnipToolsDefaultKeys() {
-        // Bare function keys, mirroring Snipaste's muscle memory.
-        Defaults[.snipToolsEditShortcut] = KeyCombo(key: .f1, cocoaModifiers: [])
-        Defaults[.pinToScreenShortcut] = KeyCombo(key: .f3, cocoaModifiers: [])
-        Defaults[.copyImagePathShortcut] = KeyCombo(key: .f4, cocoaModifiers: [])
-        Defaults[.colorPickerShortcut] = KeyCombo(key: .c, cocoaModifiers: .option)
+        /*
+         SnipTools keys are covered by inline `default:` values on their
+         Defaults.Keys (F1/F3/F4/⌥P), so nothing to write here — a write here
+         would clobber keys the user customized later.
+         */
     }
 
     private func setDefaultAppShortcutKeys() {
@@ -66,11 +50,30 @@ extension ShortcutManager {
 extension ShortcutManager {
     /// Setup global shortcut actions
     func setupGlobalShortcutActions() {
+        // One owner per key combo: a duplicate registration makes the hotkey
+        // fire the wrong action (or both), the classic "shortcuts act up" bug.
+        var claimedCombos: [String: ShortcutAction] = [:]
+
         for action in ShortcutAction.globalActions {
-            if let key = action.defaultsKey {
-                let keyCombo = Defaults[key]
-                bindingGlobalShortcutAction(keyCombo: keyCombo, action: action)
+            guard let key = action.defaultsKey else {
+                logWarn("global shortcut skipped, no defaults key, action=\(action.rawValue)")
+                continue
             }
+            let keyCombo = Defaults[key]
+            if keyCombo == nil {
+                logWarn("global shortcut has no key combo in defaults, action=\(action.rawValue), key=\(key.name)")
+            }
+            if let keyCombo {
+                let fingerprint = "\(keyCombo.currentKeyCode)|\(keyCombo.modifiers)"
+                if let winner = claimedCombos[fingerprint] {
+                    logError(
+                        "shortcut conflict, action=\(action.rawValue) wants the same key as action=\(winner.rawValue); keeping \(winner.rawValue), rebind one of them in Settings"
+                    )
+                    continue
+                }
+                claimedCombos[fingerprint] = action
+            }
+            bindingGlobalShortcutAction(keyCombo: keyCombo, action: action)
         }
     }
 
@@ -82,6 +85,9 @@ extension ShortcutManager {
 
         // Ensure the action is a global action and keyCombo is valid
         guard let keyCombo, action.isGlobal else {
+            logWarn(
+                "shortcut binding skipped, action=\(action.rawValue), keyCombo=\(keyCombo != nil ? "set" : "nil"), isGlobal=\(action.isGlobal)"
+            )
             return
         }
 
@@ -94,6 +100,9 @@ extension ShortcutManager {
         if !keyCombo.doubledModifiers,
            keyCombo.modifiers == Int(NSEvent.ModifierFlags.function.rawValue) {
             let keyCode = Int(keyCombo.currentKeyCode)
+            logInfo(
+                "binding function-key hotkey, action=\(action.rawValue), keyCode=\(keyCode), capturesFrozenFrame=\(action == .snipToolsEditScreen)"
+            )
 
             /*
              Carbon hotkeys are dead while any menu is tracking (the press
@@ -136,5 +145,6 @@ extension ShortcutManager {
         }
 
         hotKey.register()
+        logInfo("binding modifier hotkey via Magnet, action=\(action.rawValue), keyCombo=\(keyCombo)")
     }
 }

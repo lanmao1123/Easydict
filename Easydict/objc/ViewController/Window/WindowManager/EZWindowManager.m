@@ -876,9 +876,11 @@ static EZWindowManager *_instance;
 
     [self captureWithRestorePreviousApp:YES completion:^(NSImage *_Nullable image) {
         if (!image) {
+            self.silentOCRPending = NO;
             return;
         }
 
+        self.silentOCRPending = YES;
         self.actionType = EZActionTypeScreenshotOCR;
         EZBaseQueryViewController *viewController = self.backgroundQueryViewController;
         [viewController resetQueryModelForBackgroundOCR];

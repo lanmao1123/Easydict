@@ -120,10 +120,9 @@ final class AnnotationEditorState: ObservableObject {
             if !brushStrokeActive {
                 brushStrokeActive = true
                 brushTileCount = 0
-                NSLog(
-                    "[SnipTools] Brush stroke started, tool=%@, selection=%@",
-                    selectedTool.rawValue,
-                    NSStringFromRect(selectionRect)
+                strokeTileBounds = .zero
+                logInfo(
+                    "brush stroke started, tool=\(selectedTool.rawValue), selection=\(NSStringFromRect(selectionRect))"
                 )
             }
             paintBrushStroke(to: localPoint)
@@ -198,7 +197,7 @@ final class AnnotationEditorState: ObservableObject {
                 commitLiveStroke()
                 let toolName = selectedTool.rawValue
                 let count = brushTileCount
-                NSLog("[SnipTools] Brush stroke finished, tool=%@, tiles=%d", toolName, count)
+                logInfo("brush stroke finished, tool=\(toolName), tiles=\(count)")
             }
 
         case .eraser:
@@ -216,6 +215,7 @@ final class AnnotationEditorState: ObservableObject {
     /// just discards.
     func commitText(_ string: String) {
         guard let point = textDraftPoint else { return }
+        logInfo("text commit, editingExisting=\(editingTextItemID != nil), chars=\(string.count)")
         defer {
             textDraftPoint = nil
             editingTextItemID = nil
@@ -243,6 +243,7 @@ final class AnnotationEditorState: ObservableObject {
 
     /// Esc during a text draft: leaves the committed state untouched.
     func discardText() {
+        logInfo("text draft discarded, restored=\(editingTextItemID != nil)")
         textDraftPoint = nil
         editingTextItemID = nil
     }
@@ -250,7 +251,11 @@ final class AnnotationEditorState: ObservableObject {
     /// Composes the clean base with every annotation; nil when the base
     /// cannot be captured anymore.
     func composedImage() -> NSImage? {
-        guard let base = Screenshot.shared.captureEditedBaseImage() else { return nil }
+        guard let base = Screenshot.shared.captureEditedBaseImage() else {
+            logError("compose aborted, base image unavailable")
+            return nil
+        }
+        logInfo("composing, items=\(model.items.count), selection=\(selectionRect.size)")
 
         let composed = AnnotationComposer.compose(
             base: base,
@@ -269,6 +274,7 @@ final class AnnotationEditorState: ObservableObject {
 
     /// Checkmark / ⌘C / Enter: copy the composed image and end editing.
     func finishByCopying() {
+        logInfo("finish by copying requested")
         guard let image = composedImage() else {
             EZToast.showText(NSLocalizedString("snip_save_failed", comment: ""))
             return
@@ -278,6 +284,7 @@ final class AnnotationEditorState: ObservableObject {
 
     /// Folder / ⌘S: save to disk, copy the absolute path and end editing.
     func finishBySavingPath() {
+        logInfo("finish by saving path requested")
         guard let image = composedImage(),
               PasteboardPathService.saveAndCopyPath(for: image) != nil else {
             EZToast.showText(NSLocalizedString("snip_save_failed", comment: ""))
@@ -289,6 +296,7 @@ final class AnnotationEditorState: ObservableObject {
     /// F3 while annotating: pin the composed image straight to the screen,
     /// Snipaste-style, without touching the clipboard.
     func pinAndFinish() {
+        logInfo("finish by pinning requested")
         guard let image = composedImage() else {
             EZToast.showText(NSLocalizedString("snip_save_failed", comment: ""))
             return
@@ -311,6 +319,10 @@ final class AnnotationEditorState: ObservableObject {
 
     /// Tiles committed in the current stroke, for logging.
     private var brushTileCount = 0
+
+    /// Union of every tile painted in the current stroke, top-left points;
+    /// the committed region item crops the live bitmap to exactly this.
+    private var strokeTileBounds = CGRect.zero
 
     private var liveStrokeContext: CGContext?
 
@@ -380,6 +392,9 @@ final class AnnotationEditorState: ObservableObject {
             return
         }
         drawLiveTile(tile, in: tileRect)
+        strokeTileBounds = strokeTileBounds.isNull
+            ? tileRect
+            : strokeTileBounds.union(tileRect)
         brushTileCount += 1
     }
 
@@ -403,7 +418,11 @@ final class AnnotationEditorState: ObservableObject {
         )
         context.restoreGState()
 
-        liveStrokeCanvas = context.makeImage()
+        // makeImage() copies the whole selection bitmap; on the drag path
+        // refresh it only every few tiles (a final snapshot happens on commit).
+        if brushTileCount % 4 == 0 {
+            liveStrokeCanvas = context.makeImage()
+        }
     }
 
     private func ensureLiveStrokeContext() -> CGContext? {
@@ -424,16 +443,31 @@ final class AnnotationEditorState: ObservableObject {
         return context
     }
 
-    /// Mouse-up: the whole live bitmap becomes one region item, so one undo
-    /// step removes the entire stroke exactly like the previous grouped adds.
+    /// Mouse-up: the live bitmap cropped to the stroke's bounding box becomes
+    /// one region item, so one undo step removes the entire stroke without
+    /// pinning a full-selection image per stroke in undo history.
     private func commitLiveStroke() {
         defer {
             liveStrokeContext = nil
             liveStrokeCanvas = nil
+            strokeTileBounds = .zero
         }
         guard let context = liveStrokeContext, let image = context.makeImage() else { return }
-        let frame = CGRect(origin: .zero, size: selectionRect.size)
-        model.add(AnnotationItem(kind: .region(image: image, frame: frame), style: currentStyle))
+        let scale = CGFloat(context.width) / max(selectionRect.width, 1)
+        let pixelBounds = CGRect(
+            x: strokeTileBounds.minX * scale,
+            y: strokeTileBounds.minY * scale,
+            width: strokeTileBounds.width * scale,
+            height: strokeTileBounds.height * scale
+        ).integral.intersection(CGRect(origin: .zero, size: CGSize(width: context.width, height: context.height)))
+        guard !pixelBounds.isNull, let cropped = image.cropping(to: pixelBounds) else { return }
+        let frame = CGRect(
+            x: pixelBounds.minX / scale,
+            y: pixelBounds.minY / scale,
+            width: CGFloat(cropped.width) / scale,
+            height: CGFloat(cropped.height) / scale
+        )
+        model.add(AnnotationItem(kind: .region(image: cropped, frame: frame), style: currentStyle))
     }
 
     /// Renders a mosaic/blur tile covering `region` (top-left point space).

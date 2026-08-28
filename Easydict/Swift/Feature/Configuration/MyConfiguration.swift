@@ -427,7 +427,7 @@ extension MyConfiguration {
     }
 
     fileprivate func didSetAutoSelectText() {
-        EventMonitor.shared.addBothMonitor(autoSelectText)
+        // The select-translate monitor is retired; keep only the settings log.
         logSettings(["auto_select_sext": autoSelectText])
     }
 

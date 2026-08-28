@@ -99,7 +99,7 @@ struct OCRMergeContext {
     // MARK: - Text Length Properties
 
     lazy var comparedObservation: EZRecognizedTextObservation = {
-        isFirstHasIndentation ? maxXObservation : metrics.maxXObservation!
+        isFirstHasIndentation ? maxXObservation : (metrics.maxXObservation ?? maxXObservation)
     }()
 
     lazy var isPreviousLongText: Bool = {

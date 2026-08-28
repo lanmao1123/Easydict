@@ -8,7 +8,6 @@
 
 import AppKit
 import Carbon
-import os.log
 import SwiftUI
 
 // MARK: - ClipboardPanel
@@ -74,7 +73,7 @@ final class ClipboardPanel: NSPanel {
         viewModel.load()
         makeKeyAndOrderFront(nil)
         installKeyMonitorIfNeeded()
-        NSLog("[Clipboard] Panel presented, isVisible=%d, occlusion=%ld", isVisible ? 1 : 0, occlusionState.rawValue)
+        logInfo("panel presented, visible=\(isVisible), occlusion=\(occlusionState.rawValue)")
     }
 
     func reload() {
@@ -82,8 +81,6 @@ final class ClipboardPanel: NSPanel {
     }
 
     // MARK: Private
-
-    private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Easydict", category: "ClipboardHistory")
 
     private var keyMonitor: Any?
 

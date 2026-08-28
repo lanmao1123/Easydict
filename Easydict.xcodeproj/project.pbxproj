@@ -219,7 +219,6 @@
 		0377C08F2F13EAAC00302A2C /* View+BorderedCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0377C08B2F13EAAC00302A2C /* View+BorderedCard.swift */; };
 		0377C0922F13EAFE00302A2C /* BuildConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0377C0902F13EAFE00302A2C /* BuildConfig.swift */; };
 		0377C0DA2F13F97100302A2C /* QueryRecordManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0377C0D92F13F97100302A2C /* QueryRecordManager.swift */; };
-		0377C0F32F13FA4B00302A2C /* FavoritesTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0377C0F22F13FA4B00302A2C /* FavoritesTab.swift */; };
 		037852B9295D49F900D0E2CF /* EZTableRowView.m in Sources */ = {isa = PBXBuildFile; fileRef = 037852B8295D49F900D0E2CF /* EZTableRowView.m */; };
 		03792EA22C3831040074A145 /* OllamaService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03792EA12C3831040074A145 /* OllamaService.swift */; };
 		037A9CC72E24A73500668C49 /* ocr-zh-text-list-1.png in Resources */ = {isa = PBXBuildFile; fileRef = 037A9CC62E24A73500668C49 /* ocr-zh-text-list-1.png */; };
@@ -401,7 +400,6 @@
 		03D5C4CA2D9D455E0054D0D4 /* ChineseDetection+Prose.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03D5C4C92D9D455E0054D0D4 /* ChineseDetection+Prose.swift */; };
 		03D5C4CC2DA21EAD0054D0D4 /* MetadataExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03D5C4CB2DA21EAD0054D0D4 /* MetadataExtractor.swift */; };
 		03D90BC62E22A4A2005C1BBB /* ocr-pl-text-1.png in Resources */ = {isa = PBXBuildFile; fileRef = 03D90BC52E22A4A2005C1BBB /* ocr-pl-text-1.png */; };
-		03D90F8F2CCA451200EE4E84 /* WindowConfigurationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03D90F8E2CCA451200EE4E84 /* WindowConfigurationView.swift */; };
 		03D9D6F72D8AB0C8009E0CEC /* ScreenshotState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03D9D6F62D8AB0C8009E0CEC /* ScreenshotState.swift */; };
 		03D9D6FB2D8C0D38009E0CEC /* Screenshot+EventMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03D9D6FA2D8C0D38009E0CEC /* Screenshot+EventMonitor.swift */; };
 		03D9D6FD2D8C0DA6009E0CEC /* Screenshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03D9D6FC2D8C0DA6009E0CEC /* Screenshot.swift */; };
@@ -418,6 +416,7 @@
 		0D0C4B0000000000000000AB /* ColorPickerPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000BB /* ColorPickerPanel.swift */; };
 		0D0C4B0000000000000000D1 /* FunctionKeyHotKeyCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000D2 /* FunctionKeyHotKeyCenter.swift */; };
 		0D0C4B0000000000000000F2 /* MenuSafeHotKeyChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000F3 /* MenuSafeHotKeyChannel.swift */; };
+		0D0C4B0000000000000000F4 /* EZURLActionRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000F5 /* EZURLActionRouter.swift */; };
 		0D0C4B0000000000000000AC /* AnnotationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000BC /* AnnotationModel.swift */; };
 		0D0C4B0000000000000000AD /* AnnotationComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000BD /* AnnotationComposer.swift */; };
 		0D0C4B0000000000000000AE /* MosaicRegionRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000BE /* MosaicRegionRenderer.swift */; };
@@ -493,7 +492,6 @@
 		0A2A05A62B59757100EEA142 /* Bundle+AppInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A2A05A52B59757100EEA142 /* Bundle+AppInfo.swift */; };
 		0A2BA9602B49A989002872A4 /* Binding+DidSet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A2BA95F2B49A989002872A4 /* Binding+DidSet.swift */; };
 		0A2BA9642B4A3CCD002872A4 /* Notification+Name.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A2BA9632B4A3CCD002872A4 /* Notification+Name.swift */; };
-		0A8685C82B552A590022534F /* DisabledAppTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A8685C72B552A590022534F /* DisabledAppTab.swift */; };
 		0A9AFBAB2B7F8D7E0064C9A8 /* CustomOpenAIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A9AFBAA2B7F8D7E0064C9A8 /* CustomOpenAIService.swift */; };
 		0AC11B222B4D16A500F07198 /* WindowAccessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AC11B212B4D16A500F07198 /* WindowAccessor.swift */; };
 		0AC11B242B4E46B300F07198 /* TapHandlerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AC11B232B4E46B300F07198 /* TapHandlerView.swift */; };
@@ -897,7 +895,6 @@
 		0377C08C2F13EAAC00302A2C /* View+DebugOnly.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "View+DebugOnly.swift"; sourceTree = "<group>"; };
 		0377C0902F13EAFE00302A2C /* BuildConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildConfig.swift; sourceTree = "<group>"; };
 		0377C0D92F13F97100302A2C /* QueryRecordManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueryRecordManager.swift; sourceTree = "<group>"; };
-		0377C0F22F13FA4B00302A2C /* FavoritesTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesTab.swift; sourceTree = "<group>"; };
 		037852B7295D49F900D0E2CF /* EZTableRowView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = EZTableRowView.h; sourceTree = "<group>"; };
 		037852B8295D49F900D0E2CF /* EZTableRowView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = EZTableRowView.m; sourceTree = "<group>"; };
 		03792EA12C3831040074A145 /* OllamaService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OllamaService.swift; sourceTree = "<group>"; };
@@ -1153,7 +1150,6 @@
 		03D5C4C92D9D455E0054D0D4 /* ChineseDetection+Prose.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ChineseDetection+Prose.swift"; sourceTree = "<group>"; };
 		03D5C4CB2DA21EAD0054D0D4 /* MetadataExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetadataExtractor.swift; sourceTree = "<group>"; };
 		03D90BC52E22A4A2005C1BBB /* ocr-pl-text-1.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "ocr-pl-text-1.png"; sourceTree = "<group>"; };
-		03D90F8E2CCA451200EE4E84 /* WindowConfigurationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowConfigurationView.swift; sourceTree = "<group>"; };
 		03D9D6F62D8AB0C8009E0CEC /* ScreenshotState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotState.swift; sourceTree = "<group>"; };
 		03D9D6FA2D8C0D38009E0CEC /* Screenshot+EventMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Screenshot+EventMonitor.swift"; sourceTree = "<group>"; };
 		03D9D6FC2D8C0DA6009E0CEC /* Screenshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Screenshot.swift; sourceTree = "<group>"; };
@@ -1170,6 +1166,7 @@
 		0D0C4B0000000000000000BB /* ColorPickerPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorPickerPanel.swift; sourceTree = "<group>"; };
 		0D0C4B0000000000000000D2 /* FunctionKeyHotKeyCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FunctionKeyHotKeyCenter.swift; sourceTree = "<group>"; };
 		0D0C4B0000000000000000F3 /* MenuSafeHotKeyChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuSafeHotKeyChannel.swift; sourceTree = "<group>"; };
+		0D0C4B0000000000000000F5 /* EZURLActionRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EZURLActionRouter.swift; sourceTree = "<group>"; };
 		0D0C4B0000000000000000BC /* AnnotationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationModel.swift; sourceTree = "<group>"; };
 		0D0C4B0000000000000000BD /* AnnotationComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationComposer.swift; sourceTree = "<group>"; };
 		0D0C4B0000000000000000BE /* MosaicRegionRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MosaicRegionRenderer.swift; sourceTree = "<group>"; };
@@ -1250,7 +1247,6 @@
 		0A2A05A52B59757100EEA142 /* Bundle+AppInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Bundle+AppInfo.swift"; sourceTree = "<group>"; };
 		0A2BA95F2B49A989002872A4 /* Binding+DidSet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Binding+DidSet.swift"; sourceTree = "<group>"; };
 		0A2BA9632B4A3CCD002872A4 /* Notification+Name.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Notification+Name.swift"; sourceTree = "<group>"; };
-		0A8685C72B552A590022534F /* DisabledAppTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisabledAppTab.swift; sourceTree = "<group>"; };
 		0A9AFBAA2B7F8D7E0064C9A8 /* CustomOpenAIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomOpenAIService.swift; sourceTree = "<group>"; };
 		0AC11B212B4D16A500F07198 /* WindowAccessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowAccessor.swift; sourceTree = "<group>"; };
 		0AC11B232B4E46B300F07198 /* TapHandlerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapHandlerView.swift; sourceTree = "<group>"; };
@@ -1512,8 +1508,6 @@
 				278540332B3DE04F004E9488 /* GeneralTab.swift */,
 				0A057D6C2B499A000025C51D /* ServiceTab.swift */,
 				0A1189A12F700001005C51D /* ServiceTabListViews.swift */,
-				0377C0F22F13FA4B00302A2C /* FavoritesTab.swift */,
-				0A8685C72B552A590022534F /* DisabledAppTab.swift */,
 				96099AE12B5D40330055C4DD /* ShortcutTab.swift */,
 				03832F532B5F6BE200D0DC64 /* AdvancedTab.swift */,
 				276742042B3DC230002A2C75 /* PrivacyTab.swift */,
@@ -3562,7 +3556,6 @@
 		9627F9332B59956800B1E999 /* View */ = {
 			isa = PBXGroup;
 			children = (
-				03D90F8E2CCA451200EE4E84 /* WindowConfigurationView.swift */,
 			);
 			path = View;
 			sourceTree = "<group>";
@@ -3797,6 +3790,7 @@
 				0340D3972C91D4A3004C9910 /* AppleScript */,
 				EA9943E62B534D7C00EE7B97 /* Extensions */,
 				03538DF12D25AAD1005E56A8 /* CookieManager.swift */,
+				0D0C4B0000000000000000F5 /* EZURLActionRouter.swift */,
 				A1D1807A2F8D100100B1C0D1 /* ThrottleGate.swift */,
 				03A3E1542BEBDB2000E7E210 /* Throttler.swift */,
 			);
@@ -4371,6 +4365,7 @@
 				0338210C2F0EAF490087A361 /* AppleScriptTask.swift in Sources */,
 				03F5A1032F5B3A0100AA0001 /* NSStringEasydictBridge.swift in Sources */,
 				03715A282E6D24F60067259C /* SystemUtility.swift in Sources */,
+				0D0C4B0000000000000000F4 /* EZURLActionRouter.swift in Sources */,
 				0377C0DA2F13F97100302A2C /* QueryRecordManager.swift in Sources */,
 				EA9943EE2B5353AB00EE7B97 /* WindowTypeExtensions.swift in Sources */,
 				03991158292927E000E1B06D /* EZTitlebar.m in Sources */,
@@ -4521,7 +4516,6 @@
 				03BB2DEB29F57DC000447EDD /* NSImage+EZSymbolmage.m in Sources */,
 				03B0230629231FA6001C7E63 /* EZLabel.m in Sources */,
 				EA1013442B5DBDB1005E43F9 /* KeyCombo+Defaults.Serializable.swift in Sources */,
-				03D90F8F2CCA451200EE4E84 /* WindowConfigurationView.swift in Sources */,
 				033B7134293CE2430096E2DF /* EZWebViewTranslator.m in Sources */,
 				03CF88632B137F650030C199 /* Array+Convenience.swift in Sources */,
 				03F46BE92E41C83B00D35EF6 /* IndentationInfo.swift in Sources */,
@@ -4541,7 +4535,6 @@
 				0380484B2C4975BD006C6210 /* Encodable+JSON.swift in Sources */,
 				03BD281E29481C0400F5891A /* EZAudioPlayer.m in Sources */,
 				035451012E3C601100BAA8E5 /* OCRMergeContext.swift in Sources */,
-				0A8685C82B552A590022534F /* DisabledAppTab.swift in Sources */,
 				03E75A032ED75FB400E1741E /* UserDefaults+ObjCCompat.swift in Sources */,
 				9643D94A2B71EABE000FBEA6 /* KeyHolderAlterView.swift in Sources */,
 				03B0233429231FA6001C7E63 /* MMConsoleLogFormatter.m in Sources */,
@@ -4653,7 +4646,6 @@
 				03715A2A2E6D253E0067259C /* FocusedElementInfo.swift in Sources */,
 				9643D9462B71D103000FBEA6 /* KeyHolderRowView.swift in Sources */,
 				031C66DB2EDA14E90025D190 /* String+Split.swift in Sources */,
-				0377C0F32F13FA4B00302A2C /* FavoritesTab.swift in Sources */,
 				039B694F2A9D9F370063709D /* EZWebViewManager.m in Sources */,
 				03FB3EDD2B1B405B004C3238 /* TencentSigning.swift in Sources */,
 				0327A5A82CCB3339002BA81B /* UpdateNotificationInfo.swift in Sources */,

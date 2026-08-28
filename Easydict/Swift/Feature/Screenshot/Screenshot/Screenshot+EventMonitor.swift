@@ -14,6 +14,7 @@ extension Screenshot {
 
     /// Setup key event monitors for ESC key and D key
     func setupEventMonitor() {
+        logInfo("local key/right-click monitor installing")
         // Monitor both key down and right mouse down events
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .rightMouseDown]) { [weak self] event in
             guard let self else { return event }
@@ -24,7 +25,7 @@ extension Screenshot {
 
             case .rightMouseDown:
                 // Handle right mouse click
-                NSLog("Right mouse click detected, canceling screenshot")
+                logInfo("right click detected, canceling screenshot")
                 finishCapture(nil)
 
             default:
@@ -45,6 +46,16 @@ extension Screenshot {
     private func handleKeyDown(_ event: NSEvent) -> NSEvent? {
         let keyCode = event.keyCode
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        // Flag names keep the log readable without leaking typed content.
+        let flagNames = [
+            flags.contains(.command) ? "cmd" : nil,
+            flags.contains(.shift) ? "shift" : nil,
+            flags.contains(.option) ? "opt" : nil,
+            flags.contains(.control) ? "ctrl" : nil,
+        ].compactMap { $0 }.joined(separator: "+")
+        logInfo(
+            "key down, keyCode=\(keyCode), flags=\(flagNames.isEmpty ? "none" : flagNames), editMode=\(editModeEnabled)"
+        )
 
         if keyCode == kVK_Escape {
             // While typing, ESC only discards the text draft, restoring the
@@ -52,18 +63,19 @@ extension Screenshot {
             if let editor = activeAnnotationEditor {
                 let discardedDraft = MainActor.assumeIsolated { () -> Bool in
                     guard editor.textDraftPoint != nil else { return false }
+                    logInfo("ESC discards text draft only")
                     editor.discardText()
                     return true
                 }
                 if discardedDraft { return nil }
             }
-            NSLog("ESC key detected locally, canceling screenshot")
+            logInfo("ESC cancels screenshot session")
             finishCapture(nil)
             return nil
         }
 
         if keyCode == kVK_ANSI_D, !editModeEnabled {
-            NSLog("D key detected locally, capturing last screenshot rect")
+            logInfo("D key re-captures last screenshot rect")
             captureLastScreenshotRect()
             return nil
         }
@@ -73,6 +85,7 @@ extension Screenshot {
             // The function modifier is ignored since fn-mode keyboards report it.
             if keyCode == kVK_F3,
                flags.intersection([.command, .control, .option, .shift]).isEmpty {
+                logInfo("F3 pins editing result directly")
                 MainActor.assumeIsolated {
                     editor.pinAndFinish()
                 }
@@ -80,26 +93,34 @@ extension Screenshot {
             }
 
             let handled = MainActor.assumeIsolated { () -> Bool in
-                guard editor.textDraftPoint == nil else { return false }
+                guard editor.textDraftPoint == nil else {
+                    logInfo("text draft active, editing shortcut skipped, keyCode=\(keyCode)")
+                    return false
+                }
                 // ⌘Z/⇧⌘Z undo-redo, ⌘C copy-and-close, ⌘S save-path,
                 // Enter confirms like the toolbar checkmark.
                 if flags == .command, keyCode == kVK_ANSI_Z {
+                    logInfo("⌘Z undo while annotating")
                     editor.model.undo()
                     return true
                 }
                 if flags == [.command, .shift], keyCode == kVK_ANSI_Z {
+                    logInfo("⇧⌘Z redo while annotating")
                     editor.model.redo()
                     return true
                 }
                 if flags == .command, keyCode == kVK_ANSI_C {
+                    logInfo("⌘C finishes editing by copying")
                     editor.finishByCopying()
                     return true
                 }
                 if flags == .command, keyCode == kVK_ANSI_S {
+                    logInfo("⌘S finishes editing by saving path")
                     editor.finishBySavingPath()
                     return true
                 }
                 if flags.isEmpty, keyCode == kVK_Return {
+                    logInfo("Enter finishes editing by copying")
                     editor.finishByCopying()
                     return true
                 }
@@ -107,6 +128,7 @@ extension Screenshot {
             }
             if handled { return nil }
             // Pass everything else to the editing UI (text input needs it).
+            logInfo("key passed through to editing UI, keyCode=\(keyCode)")
             return event
         }
 
@@ -117,6 +139,7 @@ extension Screenshot {
         if let eventMonitor {
             NSEvent.removeMonitor(eventMonitor)
             self.eventMonitor = nil
+            logInfo("local key/right-click monitor removed")
         }
     }
 
@@ -127,13 +150,13 @@ extension Screenshot {
         var lastRect = lastScreenshotRect
 
         if lastRect.isEmpty {
-            NSLog("No previous screenshot rect available")
+            logInfo("D preview aborted, no previous screenshot rect")
             return
         }
 
         // Find appropriate screen for capturing
         guard let targetScreen = lastScreen ?? NSScreen.currentMouseScreen() ?? NSScreen.main else {
-            NSLog("No valid screen found for capture")
+            logWarn("D preview aborted, no valid screen")
             return
         }
 
@@ -143,7 +166,7 @@ extension Screenshot {
         }
 
         guard let state = overlayViewStates[targetScreen] else {
-            NSLog("No state found for target screen")
+            logWarn("D preview aborted, no overlay state for target screen")
             return
         }
 
@@ -151,6 +174,7 @@ extension Screenshot {
         cancelPreviewScreenshotTimer()
 
         // Show the preview rectangle visually
+        logInfo("D preview shows last rect \(lastRect)")
         state.showPreview(rect: lastRect)
 
         // Create a work item to perform the actual screenshot after a delay
@@ -159,21 +183,16 @@ extension Screenshot {
 
             // Ensure we are still in screenshot mode
             guard isTakingScreenshot else {
-                NSLog("Preview screenshot cancelled because capture finished.")
+                logInfo("D preview cancelled, capture already finished")
                 return
             }
-
-            NSLog("Executing delayed screenshot for preview rect: \(lastRect)")
 
             performScreenshot(screen: targetScreen, rect: lastRect)
         }
 
         // Store the work item so it can be cancelled
         previewScreenshotWorkItem = workItem
-
-        // Schedule the work item to run after 1 second
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: workItem)
-        NSLog("Scheduled screenshot capture in 1s for preview.")
     }
 }
 

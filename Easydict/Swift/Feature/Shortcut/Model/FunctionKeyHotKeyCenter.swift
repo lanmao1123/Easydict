@@ -46,9 +46,8 @@ enum FunctionKeyHotKeyCenter {
             &ref
         )
         guard error == noErr, let ref else {
-            NSLog(
-                "[Shortcut] Function-key hotkey registration failed, identifier=%@, keyCode=%d, error=%d",
-                identifier, keyCode, Int(error)
+            logError(
+                "function-key hotkey registration failed, identifier=\(identifier), keyCode=\(keyCode), osstatus=\(Int(error))"
             )
             return
         }
@@ -57,13 +56,14 @@ enum FunctionKeyHotKeyCenter {
         identifiersById[id] = identifier
         keyCodesById[id] = keyCode
         handlersById[id] = handler
-        NSLog("[Shortcut] Registered function-key hotkey, identifier=%@, keyCode=%d", identifier, keyCode)
+        logInfo("registered function-key hotkey, identifier=\(identifier), keyCode=\(keyCode)")
     }
 
     /// Removes the hotkey bound to `identifier`, if any.
     static func unregister(identifier: String) {
         if let ref = hotKeyRefs.removeValue(forKey: identifier), let ref {
             UnregisterEventHotKey(ref)
+            logInfo("unregistered function-key hotkey, identifier=\(identifier)")
         }
         let staleIds = identifiersById.filter { $0.value == identifier }.map(\.key)
         for staleId in staleIds {
@@ -122,17 +122,22 @@ enum FunctionKeyHotKeyCenter {
         let handler = MainActor.assumeIsolated {
             handlersById[id.id]
         }
+        let keyCode = keyCodesById[id.id]
+        logInfo(
+            "carbon hotkey fired, id=\(id.id), keyCode=\(keyCode.map(String.init) ?? "unknown"), hasHandler=\(handler != nil)"
+        )
         /*
          A menu-safe enrollment exists for this same key; whichever channel
          saw the physical press first claims it, so a menu-open press isn't
          dispatched twice once the tap already handled it.
          */
-        if let keyCode = keyCodesById[id.id],
-           !MenuSafeHotKeyChannel.shared.claimEmission(keyCode: keyCode) {
+        if let keyCode, !MenuSafeHotKeyChannel.shared.claimEmission(keyCode: keyCode) {
+            logInfo("carbon hotkey skipped, menu-safe channel already claimed keyCode=\(keyCode)")
             return noErr
         }
         if let handler {
             Task { @MainActor in
+                logInfo("carbon hotkey dispatching handler, keyCode=\(keyCode.map(String.init) ?? "?")")
                 handler()
             }
         }

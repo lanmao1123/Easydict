@@ -15,7 +15,7 @@ extension NSScreen {
     /// - Returns: NSImage of captured screenshot or nil if failed
     func takeScreenshot(rect: CGRect? = nil) -> NSImage? {
         let rect = rect ?? bounds
-        NSLog("Taking screenshot of rect: \(rect), screen: \(debugDescription)")
+        logInfo("takeScreenshot begin, screen=\(localizedName), rect=\(rect)")
 
         /*
          ScreenCaptureKit first: a customized Accessibility pointer is a
@@ -24,10 +24,14 @@ extension NSScreen {
          windows and the cursor itself; menus and every other layer stay in.
          */
         if #available(macOS 14.0, *) {
+            let started = Date()
             if let image = Self.sckCaptureSync(screen: self, rect: rect) {
+                logInfo(
+                    "takeScreenshot SCK ok, screen=\(localizedName), size=\(image.size), cost=\(Int(Date().timeIntervalSince(started) * 1000))ms"
+                )
                 return image
             }
-            NSLog("ScreenCaptureKit capture failed, falling back to window list")
+            logWarn("takeScreenshot SCK failed after retry, falling back to window list, screen=\(localizedName)")
         }
 
         /*
@@ -48,10 +52,11 @@ extension NSScreen {
             kCGNullWindowID,
             [.bestResolution]
         ) else {
-            NSLog("Failed to create window-list image, globalRect: \(globalRect)")
+            logError("window-list fallback failed too, globalRect=\(globalRect), screen=\(localizedName)")
             return nil
         }
 
+        logInfo("takeScreenshot window-list fallback ok, screen=\(localizedName), globalRect=\(globalRect)")
         return NSImage(cgImage: capturedImage, size: .zero)
     }
 
@@ -63,11 +68,33 @@ extension NSScreen {
         let semaphore = DispatchSemaphore(value: 0)
         Task.detached(priority: .userInitiated) {
             result = await sckCapture(screen: screen, rect: rect)
+            if result == nil {
+                /*
+                 One immediate retry with a refreshed content snapshot: a
+                 transiently failing or stale SCShareableContent is the usual
+                 cause, and a nil here leaves the overlay without its frozen
+                 background and dark mask entirely.
+                 */
+                invalidateShareableContentCache()
+                result = await sckCapture(screen: screen, rect: rect)
+            }
             semaphore.signal()
         }
-        semaphore.wait()
+        /*
+         Bounded wait: ScreenCaptureKit can hang across display reconfigure or
+         WindowServer stalls, and this runs on the main thread — an unbounded
+         wait would freeze the whole app. On timeout the detached task keeps
+         writing only its own captured variable; fall through to the
+         window-list fallback instead.
+         */
+        if semaphore.wait(timeout: .now() + sckCaptureTimeout) == .timedOut {
+            logError("SCK capture timed out after \(Int(sckCaptureTimeout))s, screen=\(screen.localizedName)")
+            return nil
+        }
         return result
     }
+
+    private static let sckCaptureTimeout: TimeInterval = 4
 
     @available(macOS 14.0, *)
     private static func sckCapture(screen: NSScreen, rect: CGRect) async -> NSImage? {
@@ -78,7 +105,7 @@ extension NSScreen {
         do {
             let content = try await Self.cachedShareableContent()
             guard let display = content.displays.first(where: { $0.displayID == displayID }) else {
-                NSLog("SCK: display %d not found", displayID)
+                logError("SCK display not found, displayID=\(displayID)")
                 return nil
             }
 
@@ -88,6 +115,9 @@ extension NSScreen {
             let cursorOverlays = content.windows.filter {
                 $0.owningApplication == nil && $0.windowLayer > 1_000_000
             }
+            logInfo(
+                "SCK filter ready, excludedCursorOverlays=\(cursorOverlays.count), totalWindows=\(content.windows.count)"
+            )
             let filter = SCContentFilter(display: display, excludingWindows: cursorOverlays)
             /*
              Docs claim excluding-filters include the menu bar by default, but
@@ -112,7 +142,7 @@ extension NSScreen {
             )
             return NSImage(cgImage: cgImage, size: .zero)
         } catch {
-            NSLog("SCK capture error: \(error)")
+            logError("SCK capture error: \(error)")
             return nil
         }
     }
@@ -139,6 +169,13 @@ extension NSScreen {
      worth the latency.
      */
     @available(macOS 14.0, *)
+    private static func invalidateShareableContentCache() {
+        shareableContentLock.lock()
+        shareableContentCache = nil
+        shareableContentLock.unlock()
+    }
+
+    @available(macOS 14.0, *)
     private static func cachedShareableContent() async throws -> SCShareableContent {
         shareableContentLock.lock()
         let cached = shareableContentCache
@@ -161,7 +198,7 @@ extension NSScreen {
     /// re-shooting the display.
     func croppedScreenshot(from image: NSImage, rect: CGRect) -> NSImage? {
         guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
-            NSLog("Failed to read CGImage from frozen screenshot")
+            logError("frozen screenshot CGImage unreadable, screen=\(localizedName)")
             return nil
         }
 
@@ -174,7 +211,7 @@ extension NSScreen {
         ).integral
         guard scaledCropRect.width >= 1, scaledCropRect.height >= 1,
               let cropped = cgImage.cropping(to: scaledCropRect) else {
-            NSLog("Failed to crop frozen screenshot, rect: \(rect)")
+            logError("frozen screenshot crop failed, rect=\(rect), cgImage=\(cgImage.width)x\(cgImage.height)")
             return nil
         }
         return NSImage(cgImage: cropped, size: .zero)
@@ -192,13 +229,13 @@ extension NSScreen {
     ///        Otherwise, if `lastRect` size is larger than `currentScreen`, the adjusted rect will be scaled down to fit within the screen.
     ///        Else, the adjusted rect location to fit within the screen.
     func adjustedScreenshotRect(_ lastRect: CGRect) -> CGRect {
-        NSLog("Adjusting last screenshot rect: \(lastRect)")
+        logInfo("adjusting last screenshot rect, lastRect=\(lastRect)")
 
         let screenFrame = frame
-        NSLog("Current screen frame: \(screenFrame)")
+        logInfo("current screen frame=\(screenFrame)")
 
         if lastRect.isEmpty {
-            NSLog("Last rect is empty, cannot adjust")
+            logWarn("rect adjustment aborted, lastRect empty")
             return .zero
         }
 
@@ -213,13 +250,13 @@ extension NSScreen {
         // Check if the last rect is completely within current screen's bounds
         let currentScreenBounds = CGRect(origin: .zero, size: screenFrame.size)
         if currentScreenBounds.contains(lastRectScreenCoordinate) {
-            NSLog("Last rect is within the current screen")
+            logInfo("lastRect fits current screen, no adjustment")
             return lastRect
         }
 
         // If lastRect size is larger than current screen, scale down to fit within the screen
         if lastRect.width > screenFrame.width || lastRect.height > screenFrame.height {
-            NSLog("Last rect is larger than current screen, scaling down")
+            logInfo("lastRect larger than screen, scaling down")
 
             let widthRatio = screenFrame.width / lastRect.width
             let heightRatio = screenFrame.height / lastRect.height
@@ -243,7 +280,7 @@ extension NSScreen {
         }
 
         // Adjust position to fit within screen
-        NSLog("Adjusting last rect position to fit within screen")
+        logInfo("adjusting lastRect position to fit screen")
         var adjustedRect = lastRect
 
         // Adjust X position
@@ -260,7 +297,7 @@ extension NSScreen {
             adjustedRect.origin.y = screenFrame.height - adjustedRect.height
         }
 
-        NSLog("Adjusted rect (top-left): \(adjustedRect)")
+        logInfo("adjusted rect=\(adjustedRect)")
         return adjustedRect.integral
     }
 

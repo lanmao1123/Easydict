@@ -7,7 +7,6 @@
 //
 
 import AppKit
-import os.log
 
 // MARK: - ClipboardMonitor
 
@@ -39,9 +38,9 @@ final class ClipboardMonitor: NSObject {
         do {
             let opened = try ClipboardStore(directory: Self.defaultDirectory())
             store = opened
-            Self.log.info("[Clipboard] Store opened at \(opened.directory.path, privacy: .public)")
+            logInfo("[Clipboard] Store opened at \(opened.directory.path)")
         } catch {
-            Self.log.error("[Clipboard] Store init failed: \(String(describing: error), privacy: .public)")
+            logError("[Clipboard] Store init failed: \(String(describing: error))")
             store = nil
         }
 
@@ -53,7 +52,7 @@ final class ClipboardMonitor: NSObject {
         }
         RunLoop.main.add(pollTimer, forMode: .common)
         timer = pollTimer
-        Self.log.info("[Clipboard] Monitor started, interval=\(Self.pollInterval, privacy: .public)s")
+        logInfo("[Clipboard] Monitor started, interval=\(Self.pollInterval)s")
     }
 
     /*
@@ -74,8 +73,6 @@ final class ClipboardMonitor: NSObject {
         let pixelWidth: Int
         let pixelHeight: Int
     }
-
-    private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Easydict", category: "ClipboardHistory")
 
     /// Concealed = password managers (1Password et al.); transient = the
     /// clipboard managers' own chatter. Both must never be recorded.
@@ -98,6 +95,20 @@ final class ClipboardMonitor: NSObject {
             .appendingPathComponent("Clipboard", isDirectory: true)
     }
 
+    /// TIFF-first extraction keeps the original pixels lossless through the
+    /// PNG re-encode; nil when the data holds no usable image. Runs off-main.
+    private static func imagePayload(fromTIFF tiff: Data) -> ImagePayload? {
+        guard let rep = NSBitmapImageRep(data: tiff),
+              let png = rep.representation(using: .png, properties: [:]) else {
+            return nil
+        }
+        return ImagePayload(
+            pngData: png,
+            pixelWidth: rep.pixelsWide,
+            pixelHeight: rep.pixelsHigh
+        )
+    }
+
     private func poll() {
         let changeCount = NSPasteboard.general.changeCount
         guard changeCount != lastChangeCount else { return }
@@ -106,7 +117,7 @@ final class ClipboardMonitor: NSObject {
         if let suppressed = suppressedChangeCount {
             suppressedChangeCount = nil
             if changeCount == suppressed {
-                Self.log.debug("[Clipboard] Skipped suppressed self-write")
+                logInfo("[Clipboard] Skipped suppressed self-write")
                 return
             }
         }
@@ -120,7 +131,7 @@ final class ClipboardMonitor: NSObject {
         let types = NSPasteboard.general.types ?? []
         guard !types.isEmpty else { return }
         for skipped in Self.skippedTypes where types.contains(skipped) {
-            Self.log.info("[Clipboard] Skipped concealed/transient pasteboard")
+            logInfo("[Clipboard] Skipped concealed/transient pasteboard")
             return
         }
 
@@ -130,9 +141,13 @@ final class ClipboardMonitor: NSObject {
         let sourceName = sourceApp?.localizedName
         let sourceBundle = sourceApp?.bundleIdentifier
 
-        if let imagePayload = readImagePayload() {
+        // Only the raw TIFF bytes are grabbed on the main thread (AppKit
+        // requirement); decode and PNG re-encode run on the utility queue —
+        // a few-dozen-MB screenshot used to stall the UI here.
+        if let tiff = NSPasteboard.general.data(forType: .tiff) {
             workQueue.async { [weak self] in
-                self?.storeImage(imagePayload, sourceName: sourceName, sourceBundle: sourceBundle)
+                guard let payload = Self.imagePayload(fromTIFF: tiff) else { return }
+                self?.storeImage(payload, sourceName: sourceName, sourceBundle: sourceBundle)
             }
             return
         }
@@ -145,30 +160,16 @@ final class ClipboardMonitor: NSObject {
         }
     }
 
-    /// TIFF-first extraction keeps the original pixels lossless through the
-    /// PNG re-encode; nil when the pasteboard holds no usable image.
-    private func readImagePayload() -> ImagePayload? {
-        guard let tiff = NSPasteboard.general.data(forType: .tiff),
-              let rep = NSBitmapImageRep(data: tiff),
-              let png = rep.representation(using: .png, properties: [:]) else {
-            return nil
-        }
-        return ImagePayload(
-            pngData: png,
-            pixelWidth: rep.pixelsWide,
-            pixelHeight: rep.pixelsHigh
-        )
-    }
-
     // MARK: Store writing (utility queue)
 
     private func storeText(_ text: String, sourceName: String?, sourceBundle: String?) {
         guard let store else { return }
         do {
             try store.insertText(text, sourceApp: sourceName, sourceBundleID: sourceBundle)
-            Self.log.info("[Clipboard] Captured text, bytes=\(text.utf8.count)")
+            try store.pruneTexts()
+            logInfo("[Clipboard] Captured text, bytes=\(text.utf8.count)")
         } catch {
-            Self.log.error("[Clipboard] Text insert failed: \(String(describing: error), privacy: .public)")
+            logError("[Clipboard] Text insert failed: \(String(describing: error))")
         }
     }
 
@@ -192,9 +193,25 @@ final class ClipboardMonitor: NSObject {
                 sourceApp: sourceName,
                 sourceBundleID: sourceBundle
             )
-            Self.log.info("[Clipboard] Captured image \(payload.pixelWidth)x\(payload.pixelHeight)")
+            logInfo("[Clipboard] Captured image \(payload.pixelWidth)x\(payload.pixelHeight)")
+            pruneImageStorageIfNeeded()
         } catch {
-            Self.log.error("[Clipboard] Image insert failed: \(String(describing: error), privacy: .public)")
+            logError("[Clipboard] Image insert failed: \(String(describing: error))")
+        }
+    }
+
+    /// The capacity APIs existed but nothing called them, so the image folder
+    /// grew forever. Keep it under ~500 MB / 60 days.
+    private func pruneImageStorageIfNeeded() {
+        guard let store else { return }
+        do {
+            let capBytes = 500 * 1024 * 1024
+            if try store.totalImageBytes() > capBytes {
+                let removed = try store.deleteImages(olderThan: Date().addingTimeInterval(-60 * 24 * 3600))
+                logInfo("[Clipboard] Storage pruned, removedImages=\(removed)")
+            }
+        } catch {
+            logWarn("[Clipboard] Storage prune failed: \(String(describing: error))")
         }
     }
 

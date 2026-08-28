@@ -15,16 +15,7 @@ import SFSafeSymbols
 
 /// Enum representing different application actions that can be triggered by shortcuts
 public enum ShortcutAction: String, Identifiable, CaseIterable {
-    // Global shortcuts
-    case inputTranslate
-    case snipTranslate
-    case selectTranslate
-    case toggleAutoSelectText
-    case showMiniWindow
-    case pasteboardTranslate
-    case polishAndReplace
-    case translateAndReplace
-    case silentScreenshotOCR
+    // Global shortcuts (kept: dock translate, SnipTools, clipboard history, OCR)
     case screenshotDockTranslate
 
     // SnipTools global shortcuts
@@ -40,6 +31,7 @@ public enum ShortcutAction: String, Identifiable, CaseIterable {
     case screenshotOCR
     case pasteboardOCR
     case showOCRWindow
+    case silentScreenshotOCR
 
     // In App shortcuts
     case clearInput
@@ -66,15 +58,6 @@ public enum ShortcutAction: String, Identifiable, CaseIterable {
 extension ShortcutAction {
     /// All global shortcut actions (system-wide hotkeys)
     static let globalActions: [ShortcutAction] = [
-        .inputTranslate,
-        .snipTranslate,
-        .selectTranslate,
-        .toggleAutoSelectText,
-        .showMiniWindow,
-        .pasteboardTranslate,
-        .polishAndReplace,
-        .translateAndReplace,
-        .silentScreenshotOCR,
         .screenshotDockTranslate,
         .snipToolsEditScreen,
         .pinToScreen,
@@ -84,6 +67,7 @@ extension ShortcutAction {
         .screenshotOCR,
         .pasteboardOCR,
         .showOCRWindow,
+        .silentScreenshotOCR,
     ]
 
     /// All app-specific shortcut actions (only active when app is focused)
@@ -137,46 +121,6 @@ extension ShortcutAction {
 
         return [
             // Global shortcuts
-            .inputTranslate: .init(
-                titleKey: "menu_input_translate",
-                icon: .keyboard,
-                defaultsKey: .inputShortcut,
-                action: { windowManager.inputTranslate() }
-            ),
-            .snipTranslate: .init(
-                titleKey: "menu_screenshot_Translate",
-                icon: .cameraViewfinder,
-                defaultsKey: .snipShortcut,
-                action: { windowManager.snipTranslate() }
-            ),
-            .selectTranslate: .init(
-                titleKey: "menu_selectWord_Translate",
-                icon: .highlighter,
-                defaultsKey: .selectionShortcut,
-                action: { windowManager.selectTextTranslate() }
-            ),
-            .toggleAutoSelectText: .init(
-                titleKey: "shortcut_toggle_auto_select_text",
-                icon: .cursorarrowRays,
-                defaultsKey: .toggleAutoSelectTextShortcut,
-                action: {
-                    let isOn = !Defaults[.autoShowQueryIcon]
-                    Defaults[.autoShowQueryIcon] = isOn
-                    let message = NSLocalizedString(
-                        isOn
-                            ? "shortcut_auto_select_text.on"
-                            : "shortcut_auto_select_text.off",
-                        comment: ""
-                    )
-                    EZToast.showText(message)
-                }
-            ),
-            .silentScreenshotOCR: .init(
-                titleKey: "menu_silent_screenshot_OCR",
-                icon: .cameraMeteringSpot,
-                defaultsKey: .silentScreenshotOCRShortcut,
-                action: { windowManager.silentScreenshotOCR() }
-            ),
             .screenshotDockTranslate: .init(
                 titleKey: "menu_screenshot_dock_translate",
                 icon: .cameraViewfinder,
@@ -213,30 +157,6 @@ extension ShortcutAction {
                 defaultsKey: .clipboardHistoryShortcut,
                 action: { await ClipboardManager.shared.togglePanel() }
             ),
-            .pasteboardTranslate: .init(
-                titleKey: "menu_pasteboard_translate",
-                icon: .docOnClipboard,
-                defaultsKey: .pasteboardTranslateShortcut,
-                action: { windowManager.pasteboardTranslate(.fixed) }
-            ),
-            .polishAndReplace: .init(
-                titleKey: "menu_polish_and_replace",
-                icon: .wandAndStars,
-                defaultsKey: .polishAndReplaceShortcut,
-                action: { await ActionManager.shared.polishAndReplace() }
-            ),
-            .translateAndReplace: .init(
-                titleKey: "menu_translate_and_replace",
-                icon: .arrowLeftArrowRightSquare,
-                defaultsKey: .translateAndReplaceShortcut,
-                action: { await ActionManager.shared.translateAndReplace() }
-            ),
-            .showMiniWindow: .init(
-                titleKey: "menu_show_mini_window",
-                icon: .dockRectangle,
-                defaultsKey: .showMiniWindowShortcut,
-                action: { windowManager.showMiniFloatingWindow() }
-            ),
 
             // OCR specific shortcuts
             .screenshotOCR: .init(
@@ -256,6 +176,12 @@ extension ShortcutAction {
                 icon: .textAndCommandMacwindow,
                 defaultsKey: .showOCRWindowShortcut,
                 action: { OCRWindowManager.shared.showWindow() }
+            ),
+            .silentScreenshotOCR: .init(
+                titleKey: "menu_silent_screenshot_OCR",
+                icon: .cameraMeteringSpot,
+                defaultsKey: .silentScreenshotOCRShortcut,
+                action: { windowManager.silentScreenshotOCR() }
             ),
 
             // In App shortcuts

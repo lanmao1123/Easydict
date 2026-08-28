@@ -33,12 +33,14 @@ class Screenshot: NSObject {
         completion: @escaping (NSImage?) -> ()
     ) {
         if isTakingScreenshot {
+            logInfo("startCapture rejected, capture already in progress")
             completion(nil)
             return
         }
 
         let hasScreenCapturePermission = CGPreflightScreenCaptureAccess()
         if !hasScreenCapturePermission {
+            logInfo("startCapture rejected, screen capture permission missing")
             if !hasRequestedPermission {
                 hasRequestedPermission = true
                 /**
@@ -55,6 +57,15 @@ class Screenshot: NSObject {
         }
 
         isTakingScreenshot = true
+        logInfo("startCapture began, presetScreens=\(presetFrozenImages.count), editMode=\(editModeEnabled)")
+
+        /*
+         The overlay is app-modal: once another application takes focus, the
+         session's ⌘C/Enter/ESC shortcuts would land in the frontmost app
+         instead, so the user "copies" someone else's selection while the
+         frozen overlay still covers the screen. End the session on resign.
+         */
+        observeResignActiveDuringCapture()
 
         /*
          A stray press on F2 right next to F1 can pop the clipboard panel at
@@ -118,6 +129,8 @@ class Screenshot: NSObject {
         editModeEnabled = false
 
         isTakingScreenshot = false
+        removeResignActiveObserver()
+        logInfo("finishCapture, image=\(image != nil ? "\(image!.size)" : "nil")")
         popCrosshairCursor()
 
         // Restore focus to previous application only if shouldRestorePreviousApp is true
@@ -130,6 +143,7 @@ class Screenshot: NSObject {
         previousActiveApp = nil
 
         // Call the original completion handler
+        logInfo("finishCapture invoking completion handler")
         captureCompletionHandler?(image)
         captureCompletionHandler = nil
 
@@ -149,7 +163,7 @@ class Screenshot: NSObject {
     ///   - screen: The screen to capture from.
     ///   - rect: The rectangle area to capture within the screen coordinates.
     func performScreenshot(screen: NSScreen, rect: CGRect) {
-        NSLog("Performing screenshot, screen frame: \(screen.frame), rect: \(rect)")
+        logInfo("performing screenshot, screen=\(screen.localizedName), rect=\(rect)")
 
         // Save last screenshot rect and screen
         lastScreenshotRect = rect
@@ -161,6 +175,7 @@ class Screenshot: NSObject {
          and annotation editing ends through `completeEditing`.
          */
         if editModeEnabled {
+            logInfo("performScreenshot entering edit mode, rect=\(rect)")
             overlayViewStates[screen]?.beginEditing(inRect: rect)
             return
         }
@@ -176,12 +191,16 @@ class Screenshot: NSObject {
         let image = overlayViewStates[screen]?.frozenDisplayImage
             .flatMap { screen.croppedScreenshot(from: $0, rect: rect) }
             ?? screen.takeScreenshot(rect: rect)
+        logInfo(
+            "performScreenshot produced image, rect=\(rect), source=\(image != nil ? "ok" : "FAILED"), editMode=\(editModeEnabled)"
+        )
         finishCapture(image)
     }
 
     /// Completes annotation editing: hides overlays and fires the completion
     /// handler exactly like a regular capture, with `image` or nil to cancel.
     func completeEditing(with image: NSImage?) {
+        logInfo("completeEditing, image=\(image != nil ? "\(image!.size)" : "nil(cancel)")")
         if let screen = lastScreen {
             overlayViewStates[screen]?.endEditing()
         }
@@ -192,7 +211,10 @@ class Screenshot: NSObject {
     func captureEditedBaseImage() -> NSImage? {
         guard let screen = lastScreen,
               let rect = overlayViewStates[screen]?.editingRect,
-              !rect.isEmpty else { return nil }
+              !rect.isEmpty else {
+            logWarn("captureEditedBaseImage aborted, no editing rect")
+            return nil
+        }
         // Crop the frame frozen at capture start — instant, versus a fresh
         // full-display CGDisplayCreateImage on every ⌘C / mosaic stroke.
         if let frozen = overlayViewStates[screen]?.frozenDisplayImage,
@@ -209,8 +231,29 @@ class Screenshot: NSObject {
 
     private var previousActiveApp: NSRunningApplication?
 
+    /// Cancels the capture session when the app loses focus; see startCapture.
+    private var resignActiveObserver: (any NSObjectProtocol)?
+
     /// Tracks whether the crosshair cursor is currently pushed onto the cursor stack.
     private var hasPushedCrosshairCursor = false
+
+    private func observeResignActiveDuringCapture() {
+        guard resignActiveObserver == nil else { return }
+        resignActiveObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.willResignActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            guard let self, isTakingScreenshot else { return }
+            logInfo("app resigned active during capture, canceling session")
+            finishCapture(nil)
+        }
+    }
+
+    private func removeResignActiveObserver() {
+        if let observer = resignActiveObserver {
+            NotificationCenter.default.removeObserver(observer)
+            resignActiveObserver = nil
+        }
+    }
 
     /// Applies the crosshair cursor immediately.
     private func updateCrosshairCursor() {
@@ -248,10 +291,13 @@ class Screenshot: NSObject {
         // Save the currently active application
         previousActiveApp = NSWorkspace.shared.frontmostApplication
 
+        // Show overlay window on each screen
+        logInfo(
+            "showOverlayWindow, screens=\(NSScreen.screens.count), previousApp=\(previousActiveApp?.localizedName ?? "nil"), presets=\(presetFrozenImages.count)"
+        )
         tearDownOverlayStates()
         hideAllOverlayWindows()
 
-        // Show overlay window on each screen
         for screen in NSScreen.screens {
             createOverlayWindow(for: screen, presetFrozenImage: presetFrozenImages[screen])
         }
@@ -292,6 +338,13 @@ class Screenshot: NSObject {
          can appear in it.
          */
         state.frozenDisplayImage = presetFrozenImage ?? screen.takeScreenshot()
+        if state.frozenDisplayImage == nil {
+            logError("frozen frame capture failed, edit background will be blank, screen=\(screen.localizedName)")
+        } else {
+            logInfo(
+                "overlay window created, screen=\(screen.localizedName), frame=\(screen.frame), frozenFrame=\(presetFrozenImage != nil ? "preset" : "fresh")"
+            )
+        }
 
         let window = ScreenshotOverlayWindow(
             contentRect: screen.frame,

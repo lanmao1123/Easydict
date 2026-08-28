@@ -21,10 +21,12 @@
 
     [ShortcutManager.shared setupShortcut];
 
-    [EZWindowManager.shared showMainWindowIfNeeded];
-    
+    // Main window (input translate UI) removed from the product surface; the
+    // app now lives in the menu bar and its four kept features.
+    // [EZWindowManager.shared showMainWindowIfNeeded];
+
     [self registerRouters];
-    
+
     [DarkModeManager.shared updateDarkMode:MyConfiguration.shared.appearance];
 }
 
@@ -39,9 +41,7 @@
 }
 
 - (BOOL)applicationShouldHandleReopen:(NSApplication *)sender hasVisibleWindows:(BOOL)flag {
-    // Fix https://github.com/tisfeng/Easydict/issues/447
-    [EZWindowManager.shared showMainWindowIfNeeded];
-    
+    // Reopen used to bring back the main window; nothing to show anymore.
     return YES;
 }
 

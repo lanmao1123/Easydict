@@ -27,19 +27,11 @@ class ShortcutManager: NSObject {
         }
 
         /*
-         Older installs miss the SnipTools keys because they never see
-         firstLaunch again; inject their defaults exactly once.
+         The SnipTools/clipboard one-shot migrations were retired on purpose:
+         their Keys now carry inline `default:` values, which cover fresh
+         installs and lost-key environments without ever overwriting a key
+         the user customized (the old flags could clobber those).
          */
-        if !Defaults[.snipToolsDefaultsApplied] {
-            setSnipToolsDefaultKeys()
-            Defaults[.snipToolsDefaultsApplied] = true
-        }
-
-        // Same one-shot pattern for the clipboard history default key (F2).
-        if !Defaults[.clipboardDefaultsApplied] {
-            Defaults[.clipboardHistoryShortcut] = KeyCombo(key: .f2, cocoaModifiers: [])
-            Defaults[.clipboardDefaultsApplied] = true
-        }
 
         // Bind global shortcut actions
         setupGlobalShortcutActions()

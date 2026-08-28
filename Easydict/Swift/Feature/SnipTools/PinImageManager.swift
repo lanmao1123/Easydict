@@ -8,7 +8,6 @@
 
 import AppKit
 import Carbon
-import os.log
 
 /// Tracks all pinned image panels so they can be closed individually or all
 /// at once.
@@ -34,19 +33,19 @@ final class PinImageManager: NSObject {
          */
         if Screenshot.shared.editModeEnabled,
            let editor = Screenshot.shared.activeAnnotationEditor {
-            Self.log.info("[SnipTools] F3 routed to annotation editor pin")
+            logInfo("[SnipTools] F3 routed to annotation editor pin")
             editor.pinAndFinish()
             return
         }
 
         guard let image = NSPasteboard.general.image else {
             EZToast.showText(NSLocalizedString("snip_pasteboard_no_image", comment: ""))
-            Self.log.warning("[SnipTools] Pin skipped, no image in pasteboard")
+            logWarn("[SnipTools] Pin skipped, no image in pasteboard")
             return
         }
 
         pin(image: image)
-        Self.log.info("[SnipTools] Pinned pasteboard image")
+        logInfo("[SnipTools] Pinned pasteboard image")
     }
 
     /// Creates a pinned panel: exactly over `globalRect` when given (e.g.
@@ -64,7 +63,6 @@ final class PinImageManager: NSObject {
         place(panel: panel, index: pins.count - 1, atGlobalRect: globalRect)
         panel.orderFrontRegardless()
 
-        installESCHotKeyIfNeeded()
         installEventMonitorsIfNeeded()
     }
 
@@ -75,7 +73,6 @@ final class PinImageManager: NSObject {
         panel.close()
 
         if pins.isEmpty {
-            removeESCHotKey()
             removeEventMonitors()
         }
     }
@@ -88,7 +85,6 @@ final class PinImageManager: NSObject {
             panel.orderOut(nil)
             panel.close()
         }
-        removeESCHotKey()
         removeEventMonitors()
     }
 
@@ -112,41 +108,19 @@ final class PinImageManager: NSObject {
 
     // MARK: Private
 
-    private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Easydict", category: "SnipTools")
-
-    private static let escHotKeyIdentifier = "com.izual.Easydict.pinESC"
-
     private var pins: [PinImagePanel] = []
-
-    private var escHotKeyActive = false
 
     /// Local monitor feeding trackpad pinch zooms, alive while pins exist.
     private var magnifyMonitor: Any?
 
+    /// Global twin of the magnify monitor: gestures over our pin while
+    /// ANOTHER app is active are delivered to that app, never to the local
+    /// monitor — exactly the "pin, click elsewhere, pinch" case. Gesture-type
+    /// global monitors need no accessibility grant (only key events do).
+    private var globalMagnifyMonitor: Any?
+
     /// Local monitor copying the focused pin on ⌘C, alive while pins exist.
     private var keyDownMonitor: Any?
-
-    /// Registers a Carbon ESC hotkey while pins exist. Pins never become key
-    /// windows, and NSEvent global key monitors require accessibility
-    /// permission — Carbon hotkeys need none.
-    private func installESCHotKeyIfNeeded() {
-        guard !escHotKeyActive else { return }
-
-        FunctionKeyHotKeyCenter.register(
-            identifier: Self.escHotKeyIdentifier,
-            keyCode: kVK_Escape
-        ) { [weak self] in
-            self?.handleESC()
-        }
-        escHotKeyActive = true
-    }
-
-    private func removeESCHotKey() {
-        guard escHotKeyActive else { return }
-
-        FunctionKeyHotKeyCenter.unregister(identifier: Self.escHotKeyIdentifier)
-        escHotKeyActive = false
-    }
 
     // MARK: Event monitors
 
@@ -165,6 +139,10 @@ final class PinImageManager: NSObject {
             NSEvent.removeMonitor(magnifyMonitor)
             self.magnifyMonitor = nil
         }
+        if let globalMagnifyMonitor {
+            NSEvent.removeMonitor(globalMagnifyMonitor)
+            self.globalMagnifyMonitor = nil
+        }
         if let keyDownMonitor {
             NSEvent.removeMonitor(keyDownMonitor)
             self.keyDownMonitor = nil
@@ -181,7 +159,12 @@ final class PinImageManager: NSObject {
             }
             return event
         }
-        Self.log.info("[SnipTools] Pin magnify monitor installed")
+        globalMagnifyMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.magnify]) { [weak self] event in
+            MainActor.assumeIsolated {
+                self?.handleMagnify(event, source: "global")
+            }
+        }
+        logInfo("[SnipTools] Pin magnify monitors installed (local + global)")
     }
 
     /*
@@ -199,48 +182,42 @@ final class PinImageManager: NSObject {
                 self.handleKeyDown(event)
             }
         }
-        Self.log.info("[SnipTools] Pin keyDown monitor installed")
+        logInfo("[SnipTools] Pin keyDown monitor installed")
     }
 
-    /// Handles ⌘C over a focused pin by writing its image back to the
-    /// pasteboard; every other key passes through untouched.
+    /// Handles ⌘C (copy) and ESC (close) over a focused pin; every other key
+    /// passes through untouched. Only a focused pin is affected, so other apps
+    /// keep their ESC — no more system-wide key hijack.
     private func handleKeyDown(_ event: NSEvent) -> NSEvent? {
         guard let panel = event.window as? PinImagePanel else { return event }
 
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+
+        if event.keyCode == kVK_Escape, flags.isEmpty {
+            logInfo("[SnipTools] Pin closed via ESC")
+            remove(panel)
+            return nil
+        }
+
         guard flags == .command, event.keyCode == kVK_ANSI_C else { return event }
 
         panel.state.image.writeToPasteboard()
-        Self.log.info("[SnipTools] Pin image copied via ⌘C")
+        logInfo("[SnipTools] Pin image copied via ⌘C")
         return nil
     }
 
     /// Zooms the pin under the cursor by the pinch's incremental factor.
-    private func handleMagnify(_ event: NSEvent) {
+    /// Exactly one of the two monitors fires per gesture: the local one while
+    /// our app is active, the global one while another app holds focus.
+    private func handleMagnify(_ event: NSEvent, source: String = "local") {
         let mouse = NSEvent.mouseLocation
         guard let target = pins.last(where: { NSPointInRect(mouse, $0.frame) }),
               abs(event.magnification) > 0.0001 else { return }
 
         if event.phase == .began {
-            Self.log.info("[SnipTools] Pinch zoom began over pin")
+            logInfo("[SnipTools] Pinch zoom began over pin, source=\(source)")
         }
         target.zoom(by: 1 + event.magnification)
-    }
-
-    /// ESC routing: the hotkey consumed the key system-wide, so when a
-    /// capture session is running reproduce its ESC behavior (discard text
-    /// draft / cancel capture); otherwise close the focused pin.
-    private func handleESC() {
-        if Screenshot.shared.isTakingScreenshot {
-            if let editor = Screenshot.shared.activeAnnotationEditor,
-               editor.textDraftPoint != nil {
-                editor.discardText()
-            } else {
-                Screenshot.shared.finishCapture(nil)
-            }
-            return
-        }
-        closePinOnESC()
     }
 
     private func place(panel: PinImagePanel, index: Int, atGlobalRect globalRect: CGRect?) {

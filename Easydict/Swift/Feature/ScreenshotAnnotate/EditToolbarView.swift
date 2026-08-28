@@ -233,7 +233,7 @@ struct EditToolbarView: View {
     /// active tool obvious at a glance.
     private func toolButton(_ tool: AnnotationTool) -> some View {
         Button {
-            NSLog("[SnipTools] Toolbar selected, tool=%@", tool.rawValue)
+            logInfo("toolbar tool selected, tool=\(tool.rawValue)")
             editor.selectedTool = tool
         } label: {
             iconView(for: tool)

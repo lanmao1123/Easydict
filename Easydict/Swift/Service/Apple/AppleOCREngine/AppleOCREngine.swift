@@ -53,8 +53,6 @@ public class AppleOCREngine: NSObject {
             throw QueryError.error(type: .parameter, message: "Invalid image provided for OCR")
         }
 
-        image.write(to: OCRConstants.snipImageFileURL, using: .png)
-
         // Convert NSImage to CGImage
         guard let cgImage = image.toCGImage() else {
             throw QueryError.error(

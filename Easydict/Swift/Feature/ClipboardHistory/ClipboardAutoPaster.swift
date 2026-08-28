@@ -8,7 +8,6 @@
 
 import AppKit
 import ApplicationServices
-import os.log
 
 // MARK: - ClipboardAutoPaster
 
@@ -16,8 +15,6 @@ import os.log
 /// is written back, Raycast-style. Posting CGEvents requires the Accessibility
 /// permission; without it the call degrades to "copy only" and logging says so.
 enum ClipboardAutoPaster {
-    // MARK: Internal
-
     static var isAccessibilityGranted: Bool {
         AXIsProcessTrusted()
     }
@@ -31,7 +28,7 @@ enum ClipboardAutoPaster {
     /// time to become active again once the history panel closes.
     static func pasteToActiveApp(after delay: TimeInterval = 0.12) {
         guard isAccessibilityGranted else {
-            log.info("[Clipboard] Auto-paste skipped, accessibility permission missing")
+            logInfo("[Clipboard] Auto-paste skipped, accessibility permission missing")
             return
         }
 
@@ -45,11 +42,9 @@ enum ClipboardAutoPaster {
             up?.flags = .maskCommand
             down?.post(tap: .cghidEventTap)
             up?.post(tap: .cghidEventTap)
-            log.info("[Clipboard] Auto-paste keystroke posted")
+            logInfo("[Clipboard] Auto-paste keystroke posted")
         }
     }
 
     // MARK: Private
-
-    private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Easydict", category: "ClipboardHistory")
 }

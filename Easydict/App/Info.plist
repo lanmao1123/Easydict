@@ -36,6 +36,7 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>easydict</string>
+				<string>easydictd</string>
 			</array>
 		</dict>
 	</array>

@@ -33,9 +33,14 @@ final class SnipToolsManager: NSObject {
     /// `presetFrozenImages` carries frames captured with the menu still on
     /// screen so the menu content survives into the shot.
     func startScreenshotEdit(presetFrozenImages: [NSScreen: NSImage] = [:]) async {
-        guard !Screenshot.shared.isTakingScreenshot else { return }
+        guard !Screenshot.shared.isTakingScreenshot else {
+            logWarn("startScreenshotEdit skipped, capture already in progress")
+            return
+        }
 
+        Screenshot.shared.shouldRestorePreviousApp = false
         Screenshot.shared.editModeEnabled = true
+        logInfo("startScreenshotEdit began, presetScreens=\(presetFrozenImages.count)")
         await withCheckedContinuation { continuation in
             Screenshot.shared.startCapture(presetFrozenImages: presetFrozenImages) { image in
                 if let image {

@@ -13,6 +13,7 @@
 #import "EZSelectLanguageCell.h"
 #import "EZCoordinateUtils.h"
 #import "EZEnumTypes.h"
+#import "EZWindowManager.h"
 #import "EZAudioPlayer.h"
 #import "EZTableRowView.h"
 #import "EZSchemeParser.h"
@@ -592,10 +593,16 @@ static BOOL ez_frame_equal_with_tolerance(CGRect lhs, CGRect rhs, CGFloat tolera
             if (error) {
                 NSString *errorMsg = [error localizedDescription];
                 [self showTipsView:YES content:errorMsg type:EZTipsCellTypeErrorTips];
+                EZWindowManager.shared.silentOCRPending = NO;
                 return;
             }
 
-            if (self.config.autoCopyOCRText) {
+            // Silent screenshot OCR must always land its text in the
+            // pasteboard — copying is the feature's only outcome, so it runs
+            // regardless of the auto-copy setting (flag consumed once).
+            BOOL forceCopyOCROfSilentCapture = EZWindowManager.shared.silentOCRPending;
+            EZWindowManager.shared.silentOCRPending = NO;
+            if (self.config.autoCopyOCRText || forceCopyOCROfSilentCapture) {
                 [inputText copyToPasteboard];
             }
 

@@ -136,33 +136,67 @@ final class MenuSafeHotKeyChannel {
     }
 
     /// Route 1: hardware state polling. Needs no TCC grant at all.
+    ///
+    /// The sweep runs ONLY while a menu is actually tracking — the one window
+    /// where Carbon hotkeys go deaf and this channel is the TCC-free fallback.
+    /// A permanent 60 ms timer was a pure battery tax for the other 99.9% of
+    /// the time; menu tracking begin/end notifications scope it instead. The
+    /// event tap (route 2) covers everything outside menu tracking.
     private func startPolling() {
         lock.lock()
         let enrolledKeys = Array(keyCodes).sorted()
         lock.unlock()
-        let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .userInitiated))
-        timer.schedule(deadline: .now(), repeating: Self.pollInterval)
-        timer.setEventHandler { [weak self] in
-            guard let self else { return }
-            lock.lock()
-            let codes = Array(keyCodes)
-            lock.unlock()
-            for keyCode in codes {
-                let down = CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(keyCode))
-                    || CGEventSource.keyState(.hidSystemState, key: CGKeyCode(keyCode))
-                updatePress(isDown: down, forKeyCode: keyCode, source: "poll")
-            }
+
+        NotificationCenter.default.addObserver(
+            forName: NSMenu.didBeginTrackingNotification, object: nil, queue: nil
+        ) { [weak self] _ in
+            self?.setPollingActive(true)
         }
-        timer.resume()
-        pollTimer = timer
-        NSLog("[MenuSafeHotKey] Polling channel started, keys=%@", enrolledKeys)
+        NotificationCenter.default.addObserver(
+            forName: NSMenu.didEndTrackingNotification, object: nil, queue: nil
+        ) { [weak self] _ in
+            self?.setPollingActive(false)
+        }
+        logInfo("polling channel armed (menu-tracking scoped), keys=\(enrolledKeys)")
+    }
+
+    /// Starts/stops the keyState sweep for the duration of one menu tracking.
+    private func setPollingActive(_ active: Bool) {
+        lock.lock()
+        let hasKeys = !keyCodes.isEmpty
+        lock.unlock()
+        guard hasKeys else { return }
+
+        if active {
+            guard pollTimer == nil else { return }
+            let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .userInitiated))
+            timer.schedule(deadline: .now(), repeating: Self.pollInterval)
+            timer.setEventHandler { [weak self] in
+                guard let self else { return }
+                lock.lock()
+                let codes = Array(keyCodes)
+                lock.unlock()
+                for keyCode in codes {
+                    let down = CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(keyCode))
+                        || CGEventSource.keyState(.hidSystemState, key: CGKeyCode(keyCode))
+                    updatePress(isDown: down, forKeyCode: keyCode, source: "poll")
+                }
+            }
+            timer.resume()
+            pollTimer = timer
+            logInfo("polling started (menu tracking began)")
+        } else if let timer = pollTimer {
+            timer.cancel()
+            pollTimer = nil
+            logInfo("polling stopped (menu tracking ended)")
+        }
     }
 
     /// Route 2: session event tap on its own run loop thread. Reads every key
     /// even during menu tracking; silently skipped without Input Monitoring.
     private func startEventTapIfAuthorized() {
         guard CGPreflightListenEventAccess() else {
-            NSLog("[MenuSafeHotKey] Listen-event access not granted, polling-only mode")
+            logWarn("listen-event access not granted, polling-only mode")
             return
         }
 
@@ -186,7 +220,7 @@ final class MenuSafeHotKeyChannel {
                 userInfo: Unmanaged.passUnretained(self).toOpaque()
             )
             guard let tap else {
-                NSLog("[MenuSafeHotKey] Event tap creation failed, polling-only mode")
+                logWarn("event tap creation failed, polling-only mode")
                 return
             }
             lock.lock()
@@ -196,7 +230,7 @@ final class MenuSafeHotKeyChannel {
             let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
             CFRunLoopAddSource(CFRunLoopGetCurrent(), source, CFRunLoopMode.defaultMode)
             CGEvent.tapEnable(tap: tap, enable: true)
-            NSLog("[MenuSafeHotKey] Event tap installed on background thread")
+            logInfo("event tap installed on background thread")
             RunLoop.current.run()
         }
         thread.name = "com.izual.Easydict.MenuSafeHotKeyTap"
@@ -241,11 +275,11 @@ final class MenuSafeHotKeyChannel {
         guard freshPress else { return }
 
         let claimed = claimEmission(keyCode: keyCode)
-        NSLog(
-            "[MenuSafeHotKey] %@ keyDown keyCode=%d claimed=%d",
-            source, keyCode, claimed ? 1 : 0
-        )
-        guard claimed else { return }
+        logInfo("fresh keyPress, source=\(source), keyCode=\(keyCode), claimed=\(claimed)")
+        guard claimed else {
+            logInfo("keyPress ignored, already claimed by other channel, keyCode=\(keyCode)")
+            return
+        }
 
         dispatch(forKeyCode: keyCode)
     }
@@ -259,12 +293,12 @@ final class MenuSafeHotKeyChannel {
         // Freeze the frame BEFORE dismissing anything: the popup is exactly
         // what the user wants to see in the shot.
         let menusOnScreen = popupMenuWindows()
-        NSLog(
-            "[MenuSafeHotKey] Dispatching action, keyCode=%d, identifier=%@, openMenus=%d",
-            keyCode, enrollments.first { $1.keyCode == keyCode }?.key ?? "?", menusOnScreen.count
+        logInfo(
+            "dispatching action, keyCode=\(keyCode), identifier=\(enrollments.first { $1.keyCode == keyCode }?.key ?? "?"), openMenus=\(menusOnScreen.count)"
         )
         var presets: [NSScreen: NSImage] = [:]
         if match.capturesFrozenFrame {
+            logInfo("freezing frames for \(NSScreen.screens.count) screen(s) on background thread")
             /*
              Capture here on this background thread even with no menu open:
              the main thread then only creates windows and the crosshair
@@ -279,6 +313,8 @@ final class MenuSafeHotKeyChannel {
 
         if !menusOnScreen.isEmpty {
             dismissOpenMenus(menusOnScreen)
+        } else {
+            logInfo("no menu on screen, firing action directly")
         }
 
         Task { @MainActor in
@@ -337,17 +373,14 @@ final class MenuSafeHotKeyChannel {
                 )
                 event?.post(tap: .cghidEventTap)
             }
-            NSLog(
-                "[MenuSafeHotKey] Posted in-place click to dismiss own menu at (%.0f, %.0f)",
-                here.x, here.y
-            )
+            logInfo("posted in-place click to dismiss own menu at (\(Int(here.x)), \(Int(here.y)))")
         } else {
             let escapeKeyCode = CGKeyCode(53)
             let down = CGEvent(keyboardEventSource: nil, virtualKey: escapeKeyCode, keyDown: true)
             down?.postToPid(menu.pid)
             let up = CGEvent(keyboardEventSource: nil, virtualKey: escapeKeyCode, keyDown: false)
             up?.postToPid(menu.pid)
-            NSLog("[MenuSafeHotKey] Posted ESC to menu owner, pid=%d", menu.pid)
+            logInfo("posted ESC to foreign menu owner, pid=\(menu.pid)")
         }
     }
 }

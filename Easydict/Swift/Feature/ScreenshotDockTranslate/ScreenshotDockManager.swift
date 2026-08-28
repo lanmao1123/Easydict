@@ -25,11 +25,19 @@ final class ScreenshotDockManager: NSObject {
 
     /// Starts a fresh dock translate session.
     func start() {
+        logInfo("dock translate start requested")
         // Close other floating query windows first so they do not cover the area.
         EZWindowManager.shared().closeFloatingWindowIfNotPinnedOrMain()
 
+        // The panel must survive the session, and restoring the previous app
+        // would fire the resign-active cancellation right after the capture.
+        Screenshot.shared.shouldRestorePreviousApp = false
         Screenshot.shared.startCapture { [weak self] image in
-            guard let self, let image else { return }
+            guard let self else { return }
+            guard let image else {
+                logInfo("dock translate aborted, capture returned no image")
+                return
+            }
             handleCapturedImage(image)
         }
     }
@@ -57,6 +65,7 @@ final class ScreenshotDockManager: NSObject {
     private weak var dockScreen: NSScreen?
 
     private func handleCapturedImage(_ image: NSImage) {
+        logInfo("dock captured image, size=\(image.size)")
         guard let screen = Screenshot.shared.lastScreen else {
             logWarn("Cannot place dock overlay without a known screen")
             return
@@ -76,6 +85,7 @@ final class ScreenshotDockManager: NSObject {
         state.reset()
         showPanel()
 
+        logInfo("dock OCR starts, selection=\(capturedRect)")
         let model = QueryModel()
         model.ocrImage = image
         let ocrManager = DetectManager(model: model)
@@ -87,6 +97,9 @@ final class ScreenshotDockManager: NSObject {
 
     private func handleOCRResult(_ ocrResult: EZOCRResult?, _ error: Error?) {
         detectManager = nil
+        logInfo(
+            "dock OCR done, segments=\(ocrResult?.ocrTextArray.count ?? 0), mergedChars=\(ocrResult?.mergedText.count ?? 0), error=\(error?.localizedDescription ?? "nil")"
+        )
 
         let segmentTexts = (ocrResult?.ocrTextArray as? [EZOCRText] ?? [])
             .map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -118,6 +131,7 @@ final class ScreenshotDockManager: NSObject {
         refreshLayout()
 
         translateTask = Task {
+            logInfo("dock translation begins, blocks=\(sourceBlocks.count)")
             // Resolve the source language once for all blocks: OCR usually
             // carries it; otherwise fall back to text detection. Services
             // reject an .auto source, which the window flow detects upstream.
@@ -132,8 +146,13 @@ final class ScreenshotDockManager: NSObject {
                 }
             }
 
+            var blockIndex = 0
             for block in sourceBlocks {
-                if Task.isCancelled { return }
+                blockIndex += 1
+                if Task.isCancelled {
+                    logInfo("dock translation cancelled at block \(blockIndex)")
+                    return
+                }
 
                 do {
                     // Route through the official startQuery entry so the service
@@ -151,6 +170,7 @@ final class ScreenshotDockManager: NSObject {
                     let translated = result.translatedResults?.joined(separator: "\n")
                         ?? result.translatedText
                         ?? ""
+                    logInfo("dock block translated, index=\(blockIndex), chars=\(translated.count)")
                     appendTranslationBlock(translated)
                 } catch {
                     finishFailure(error.localizedDescription)
@@ -206,6 +226,7 @@ final class ScreenshotDockManager: NSObject {
         refreshLayout()
         newPanel.orderFrontRegardless()
         installEventMonitors()
+        logInfo("dock panel shown")
     }
 
     /// Recomputes overlay content size and docked origin for the current phase.
@@ -252,6 +273,9 @@ final class ScreenshotDockManager: NSObject {
     private func teardownPanelOnly() {
         // orderOut takes the window off screen and close releases it from the
         // app window list; dropping the reference alone leaves it visible.
+        if panel != nil {
+            logInfo("dock panel torn down")
+        }
         panel?.orderOut(nil)
         panel?.close()
         panel = nil
@@ -322,10 +346,12 @@ final class ScreenshotDockManager: NSObject {
     private func handleOutsideEvent(_ event: NSEvent) {
         if event.type == .keyDown {
             if event.keyCode == kVK_Escape {
+                logInfo("dock dismissed via global ESC")
                 dismiss()
             }
             return
         }
+        logInfo("dock dismissed via global outside click")
         dismiss()
     }
 
@@ -338,6 +364,7 @@ final class ScreenshotDockManager: NSObject {
         }
         // Clicks within our own process count as inside only when they hit the overlay.
         if event.windowNumber != panel?.windowNumber {
+            logInfo("dock dismissed via local outside click")
             dismiss()
         }
     }

@@ -248,8 +248,8 @@ struct AnnotationItem: Equatable {
                 path.line(to: scaledPoint(point, by: scale))
             }
             applyRoundCaps(path)
-            // Markers run three times thicker for a highlighter feel.
-            path.lineWidth = scaledWidth(scale) * (style.alpha < 1 ? 3 : 1)
+            // currentStyle already triples the marker width; do not double it.
+            path.lineWidth = scaledWidth(scale)
             path.stroke()
 
         case let .underline(band):
@@ -337,6 +337,7 @@ final class AnnotationModel: ObservableObject {
 
     /// Commits an item on top of the stack.
     func add(_ item: AnnotationItem) {
+        logInfo("annotation add, items=\(items.count + 1)")
         mutate { $0.append(item) }
     }
 
@@ -373,8 +374,11 @@ final class AnnotationModel: ObservableObject {
     /// Snipaste's eraser feel. Returns true when something was erased.
     @discardableResult
     func erase(alongSegment from: CGPoint, to: CGPoint) -> Bool {
-        let span = minInsetSegmentBounds(from: from, to: to)
-        guard let index = items.lastIndex(where: { $0.kind.bounds().intersects(span) }) else {
+        let radius: CGFloat = 8
+        guard let index = items.lastIndex(where: { item in
+            distance(from: from, to: to, bounds: item.kind.bounds()) <= radius
+        })
+        else {
             return false
         }
         mutate { $0.remove(at: index) }
@@ -396,16 +400,24 @@ final class AnnotationModel: ObservableObject {
     }
 
     func undo() {
-        guard let previous = undoStack.popLast() else { return }
+        guard let previous = undoStack.popLast() else {
+            logInfo("undo skipped, stack empty")
+            return
+        }
         redoStack.append(items)
         items = previous
+        logInfo("undo applied, remaining=\(items.count)")
         syncFlags()
     }
 
     func redo() {
-        guard let next = redoStack.popLast() else { return }
+        guard let next = redoStack.popLast() else {
+            logInfo("redo skipped, stack empty")
+            return
+        }
         undoStack.append(items)
         items = next
+        logInfo("redo applied, items=\(items.count)")
         syncFlags()
     }
 
@@ -441,8 +453,18 @@ final class AnnotationModel: ObservableObject {
         canRedo = !redoStack.isEmpty
     }
 
-    private func minInsetSegmentBounds(from: CGPoint, to: CGPoint) -> CGRect {
-        let bounds = CGRect(origin: from, size: .zero).union(CGRect(origin: to, size: .zero))
-        return bounds.insetBy(dx: -8, dy: -8)
+    /// Shortest distance from `bounds` to the segment `from`→`to`, so the
+    /// eraser only hits annotations the stroke actually swept past.
+    private func distance(from: CGPoint, to: CGPoint, bounds: CGRect) -> CGFloat {
+        let ab = CGPoint(x: to.x - from.x, y: to.y - from.y)
+        let lengthSquared = max(ab.x * ab.x + ab.y * ab.y, 0.0001)
+        var t = ((bounds.midX - from.x) * ab.x + (bounds.midY - from.y) * ab.y) / lengthSquared
+        t = min(max(t, 0), 1)
+        let closest = CGPoint(x: from.x + ab.x * t, y: from.y + ab.y * t)
+        let clamped = CGPoint(
+            x: min(max(closest.x, bounds.minX), bounds.maxX),
+            y: min(max(closest.y, bounds.minY), bounds.maxY)
+        )
+        return hypot(closest.x - clamped.x, closest.y - clamped.y)
     }
 }

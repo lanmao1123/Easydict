@@ -7,7 +7,6 @@
 //
 
 import AppKit
-import os.log
 
 /// Saves images to disk under `~/Downloads/EasydictCaptures/<yyyy-MM-dd>/`
 /// and copies the resulting absolute POSIX path to the pasteboard, so the
@@ -22,15 +21,15 @@ enum PasteboardPathService {
     static func saveFromPasteboardAndCopyPath() {
         guard let image = NSPasteboard.general.image else {
             EZToast.showText(NSLocalizedString("snip_pasteboard_no_image", comment: ""))
-            log.warning("[SnipTools] Copy image path skipped, no image in pasteboard")
+            logWarn("[SnipTools] Copy image path skipped, no image in pasteboard")
             return
         }
 
         if saveAndCopyPath(for: image) != nil {
-            log.info("[SnipTools] Saved pasteboard image and copied path")
+            logInfo("[SnipTools] Saved pasteboard image and copied path")
         } else {
             EZToast.showText(NSLocalizedString("snip_save_failed", comment: ""))
-            log.error("[SnipTools] Failed to save pasteboard image")
+            logError("[SnipTools] Failed to save pasteboard image")
         }
     }
 
@@ -40,12 +39,12 @@ enum PasteboardPathService {
     @discardableResult
     static func saveAndCopyPath(for image: NSImage) -> URL? {
         guard let downloadsURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first else {
-            log.error("[SnipTools] Downloads directory unavailable")
+            logError("[SnipTools] Downloads directory unavailable")
             return nil
         }
 
         guard let data = image.pngData() else {
-            log.error("[SnipTools] Failed to encode image as PNG")
+            logError("[SnipTools] Failed to encode image as PNG")
             return nil
         }
 
@@ -54,7 +53,7 @@ enum PasteboardPathService {
         do {
             try data.write(to: url)
         } catch {
-            log.error("[SnipTools] Writing PNG failed, error=\(error.localizedDescription)")
+            logError("[SnipTools] Writing PNG failed, error=\(error.localizedDescription)")
             return nil
         }
 
@@ -115,8 +114,6 @@ enum PasteboardPathService {
     }
 
     // MARK: Private
-
-    private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Easydict", category: "SnipTools")
 
     private static let rootFolderName = "EasydictCaptures"
     private static let fileExtension = "png"

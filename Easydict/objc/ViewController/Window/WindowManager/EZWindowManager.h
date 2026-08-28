@@ -48,6 +48,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)snipTranslate;
 - (void)silentScreenshotOCR;
 - (void)screenshotOCR;
+
+/// YES while a silent screenshot OCR is awaiting its result; makes the OCR
+/// completion copy the text even when the auto-copy setting is off, because
+/// "silent" only has an outcome if the text lands in the pasteboard.
+@property (nonatomic, assign) BOOL silentOCRPending;
 - (void)pasteboardTranslate:(EZWindowType)windowType;
 
 #pragma mark - Application Shorcut

@@ -51,8 +51,10 @@ public class OCRTextProcessor {
         // Set basic OCR result properties using unified observations
         updateOCRResult(ocrResult, observations: observations)
 
+        // Privacy: the observations carry the user's on-screen text; log only
+        // counts, never the content itself.
         log(
-            "\nOriginal unified OCR observations:(\(ocrResult.from)) \(observations.formattedDescription)"
+            "\nOriginal unified OCR observations:(\(ocrResult.from)) count=\(observations.count)"
         )
 
         // If intelligent joining is not enabled, return simple result
@@ -302,7 +304,8 @@ public class OCRTextProcessor {
 
             if let confidence {
                 ocrResult.confidence = CGFloat(confidence)
-                log("\nOCR text (\(ocrResult.from), \(confidence.string2f)): \(mergedText)\n")
+                // Privacy: log length only; mergedText is user content.
+                log("\nOCR text (\(ocrResult.from), \(confidence.string2f)) chars=\(mergedText.count)")
             }
         }
     }

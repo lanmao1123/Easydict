@@ -8,6 +8,7 @@
 
 #import "AppDelegate+EZURLScheme.h"
 #import <JLRoutes.h>
+#import <Easydict-Swift.h>
 #import "EZWindowManager.h"
 #import "EZSchemeParser.h"
 
@@ -26,6 +27,12 @@
         NSString *action = parameters[@"action"];
         NSString *queryText = parameters[@"text"];
         NSURL *URL = parameters[JLRouteURLKey];
+
+        // Feature actions (snip, ocr, pin, ...) dispatch straight to the kept
+        // feature set for external launchers like Raycast Quicklinks.
+        if (action.length && [EZURLActionRouter handle:action]) {
+            return YES;
+        }
 
         /**
          Recommend use easydict://query?text=xxx, easydict://xxx is a bit ambiguous and complex.

@@ -166,13 +166,14 @@ final class EventMonitor: NSObject {
 
     /// Monitor local and global events.
     func startMonitor() {
+        // Auto select-text monitoring is retired along with the select-translate
+        // feature; only the escape logger stays for diagnostics.
         escapeKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             if event.keyCode == kVK_Escape {
                 logInfo("escape")
             }
             return event
         }
-        addBothMonitor(MyConfiguration.shared.autoSelectText)
     }
 
     func isAccessibilityEnabled() -> Bool {

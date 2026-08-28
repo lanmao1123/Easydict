@@ -146,6 +146,43 @@ final class ClipboardStore {
         ))
     }
 
+    /// Keeps the text history bounded: drops text rows beyond the newest
+    /// `maxCount` and rows older than `ageLimit`. Text rows carry no files, so
+    /// a plain row delete is enough. Image rows are governed separately by
+    /// the byte-cap prune in ClipboardMonitor.
+    @discardableResult
+    func pruneTexts(
+        maxCount: Int = 500,
+        ageLimit: TimeInterval = 90 * 24 * 3600
+    ) throws
+        -> Int {
+        let cutoff = Date().addingTimeInterval(-ageLimit).timeIntervalSince1970
+        let sql = """
+        DELETE FROM entries
+        WHERE kind = 'text'
+          AND (created_at < ? OR id NOT IN (
+              SELECT id FROM entries WHERE kind = 'text'
+              ORDER BY created_at DESC LIMIT ?
+          ))
+        """
+        var statement: OpaquePointer?
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+            throw ClipboardStoreError.prepareFailed(String(cString: sqlite3_errmsg(db)))
+        }
+        sqlite3_bind_double(statement, 1, cutoff)
+        sqlite3_bind_int(statement, 2, Int32(maxCount))
+
+        guard sqlite3_step(statement) == SQLITE_DONE else {
+            throw ClipboardStoreError.execFailed(String(cString: sqlite3_errmsg(db)))
+        }
+        let removed = Int(sqlite3_changes(db))
+        if removed > 0 {
+            logInfo("[Clipboard] Text history pruned, removed=\(removed), maxCount=\(maxCount)")
+        }
+        return removed
+    }
+
     /// Newest-first listing; `since == nil` means the whole history.
     func entries(
         since: Date?,

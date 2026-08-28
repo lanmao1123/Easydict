@@ -7,7 +7,6 @@
 //
 
 import AppKit
-import os.log
 
 // MARK: - ClipboardManager
 
@@ -33,7 +32,7 @@ final class ClipboardManager: NSObject {
          pure interference, so the hotkey stays dead until capture finishes.
          */
         if Screenshot.shared.isTakingScreenshot {
-            NSLog("[Clipboard] Panel toggle ignored during screenshot session")
+            logInfo("panel toggle ignored during screenshot session")
             return
         }
 
@@ -55,21 +54,20 @@ final class ClipboardManager: NSObject {
         previousApp = NSWorkspace.shared.frontmostApplication
         panel?.present()
         NSApp.activate(ignoringOtherApps: true)
-        NSLog(
-            "[Clipboard] Panel shown, visible=%d, frame=%@",
-            panel?.isVisible == true ? 1 : 0,
-            NSStringFromRect(panel?.frame ?? .zero)
-        )
+        logInfo("panel shown, visible=\(panel?.isVisible == true), frame=\(NSStringFromRect(panel?.frame ?? .zero))")
     }
 
     func hidePanel() {
+        if panel?.isVisible == true {
+            logInfo("panel hidden")
+        }
         panel?.orderOut(nil)
     }
 
     /// Enter on an entry: write it back, close, reactivate the previous app,
     /// then auto-paste when the accessibility permission allows.
     func select(_ entry: ClipboardEntry) {
-        NSLog("[Clipboard] Select entry id=%lld kind=%@", entry.id, entry.kind.rawValue)
+        logInfo("select entry, id=\(entry.id), kind=\(entry.kind.rawValue)")
         writeBack(entry)
         ClipboardMonitor.shared.suppressNextChange()
         hidePanel()
@@ -86,10 +84,10 @@ final class ClipboardManager: NSObject {
         do {
             try store.delete(id: entry.id)
             panel?.reload()
-            Self.log.info("[Clipboard] Deleted entry id=\(entry.id)")
+            logInfo("[Clipboard] Deleted entry id=\(entry.id)")
             return true
         } catch {
-            Self.log.error("[Clipboard] Delete failed: \(String(describing: error), privacy: .public)")
+            logError("[Clipboard] Delete failed: \(String(describing: error))")
             return false
         }
     }
@@ -100,33 +98,34 @@ final class ClipboardManager: NSObject {
 
     // MARK: Private
 
-    private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Easydict", category: "ClipboardHistory")
-
     private var panel: ClipboardPanel?
 
     private weak var previousApp: NSRunningApplication?
 
     private func writeBack(_ entry: ClipboardEntry) {
         let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
 
         switch entry.kind {
         case .text:
             guard let text = entry.text else {
-                NSLog("[Clipboard] Write-back skipped, text entry has nil text")
+                logWarn("write-back skipped, text entry has nil text")
                 return
             }
+            // Validate before clearing: a failed write-back must not wipe the
+            // user's current clipboard contents.
+            pasteboard.clearContents()
             pasteboard.setString(text, forType: .string)
-            NSLog("[Clipboard] Text written back, bytes=%lu", text.utf8.count)
+            logInfo("text written back, bytes=\(text.utf8.count)")
         case .image:
             guard let store = ClipboardMonitor.shared.store,
                   let url = store.imageURL(for: entry),
                   let image = NSImage(contentsOf: url) else {
-                NSLog("[Clipboard] Image file missing for entry id=%lld", entry.id)
+                logError("write-back aborted, image file missing, id=\(entry.id)")
                 return
             }
+            pasteboard.clearContents()
             image.writeToPasteboard()
-            NSLog("[Clipboard] Image written back")
+            logInfo("image written back")
         }
     }
 }

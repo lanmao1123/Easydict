@@ -18,6 +18,7 @@ class ScreenshotState: ObservableObject {
         self.isTipVisible = !MyConfiguration.shared.isScreenshotTipLayerHidden
             && !Screenshot.shared.lastScreenshotRect.isEmpty
 
+        logInfo("state init, screen=\(screen.localizedName), frame=\(screen.frame), tipVisible=\(isTipVisible)")
         updateCursorPosition()
         updateHideDarkOverlay()
         setupMouseMovedMonitor()
@@ -76,6 +77,7 @@ class ScreenshotState: ObservableObject {
 
     /// Reset all state variables
     func reset() {
+        logInfo("state reset, screen=\(screen.localizedName)")
         isMouseMoved = false
         selectedRect = .zero
         isShowingPreview = false
@@ -88,6 +90,7 @@ class ScreenshotState: ObservableObject {
     /// Switches this screen's overlay from selecting into annotation editing:
     /// selection gestures stop, the frozen background stays fully visible.
     func beginEditing(inRect rect: CGRect) {
+        logInfo("editing begins, screen=\(screen.localizedName), rect=\(rect)")
         cleanup()
         shouldHideDarkOverlay = true
         isShowingPreview = false
@@ -102,6 +105,7 @@ class ScreenshotState: ObservableObject {
 
     /// Leaves annotation editing mode.
     func endEditing() {
+        logInfo("editing ends, screen=\(screen.localizedName)")
         isEditing = false
         editingRect = .zero
         annotationEditor = nil
@@ -198,8 +202,15 @@ class ScreenshotState: ObservableObject {
          */
         let padded = screen.frame.insetBy(dx: -4, dy: -4)
         guard padded.contains(global) else {
+            if cursorPosition != nil {
+                // Log only the transition to avoid per-frame spam.
+                logInfo("pointer left screen, crosshair hidden, screen=\(screen.localizedName)")
+            }
             cursorPosition = nil
             return
+        }
+        if cursorPosition == nil {
+            logInfo("pointer entered screen, crosshair shown, screen=\(screen.localizedName)")
         }
         cursorPosition = CGPoint(
             x: min(max(global.x - screen.frame.minX, 0), screen.frame.width - 1),

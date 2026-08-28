@@ -7,7 +7,6 @@
 //
 
 import AppKit
-import os.log
 import SwiftUI
 
 // MARK: - ColorPickerState
@@ -24,6 +23,15 @@ final class ColorPickerState: ObservableObject {
     @Published var redText = ""
     @Published var greenText = ""
     @Published var blueText = ""
+
+    /// Clears a finished session so the next launch shows no stale values.
+    func reset() {
+        zoomedImage = nil
+        hexText = ""
+        redText = ""
+        greenText = ""
+        blueText = ""
+    }
 }
 
 // MARK: - ColorPickerView
@@ -134,7 +142,7 @@ enum ColorPickerPanel {
     /// Presents the magnifier HUD over the screen under the cursor.
     static func start() {
         guard panel == nil else {
-            log.warning("[SnipTools] Color picker already active")
+            logWarn("[SnipTools] Color picker already active")
             return
         }
 
@@ -159,12 +167,10 @@ enum ColorPickerPanel {
         updateHUD()
         hudPanel.orderFrontRegardless()
 
-        log.info("[SnipTools] Color picker started")
+        logInfo("[SnipTools] Color picker started")
     }
 
     // MARK: Private
-
-    private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Easydict", category: "SnipTools")
 
     /// Zoom factor of the magnifier HUD.
     private static let magnification: CGFloat = 16
@@ -173,6 +179,7 @@ enum ColorPickerPanel {
     private static var state = ColorPickerState()
     private static var monitors: [Any] = []
     private static var snapshotImage: CGImage?
+    private static var lastHUDRefresh: CFAbsoluteTime = 0
     private static var snapshotScreen: NSScreen?
 
     /// Tears everything down; safe to call repeatedly.
@@ -182,6 +189,8 @@ enum ColorPickerPanel {
         }
         monitors.removeAll()
 
+        FunctionKeyHotKeyCenter.unregister(identifier: "com.izual.Easydict.colorPickerESC")
+
         if let panel {
             panel.orderOut(nil)
             panel.close()
@@ -189,8 +198,9 @@ enum ColorPickerPanel {
         panel = nil
         snapshotImage = nil
         snapshotScreen = nil
+        state.reset()
 
-        log.info("[SnipTools] Color picker stopped")
+        logInfo("[SnipTools] Color picker stopped")
     }
 
     private static func setupMonitors() {
@@ -213,22 +223,15 @@ enum ColorPickerPanel {
             }
         )
 
-        monitors.append(
-            NSEvent.addGlobalMonitorForEvents(matching: [.keyDown]) { event in
-                if event.keyCode == kVK_Escape {
-                    stop()
-                }
-            }
-        )
-        monitors.append(
-            NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { event in
-                if event.keyCode == kVK_Escape {
-                    stop()
-                    return nil
-                }
-                return event
-            }
-        )
+        // A Carbon ESC for the picker's short lifetime: global key monitors
+        // are deaf without Input Monitoring, which left the HUD uncancellable
+        // on un-permitted machines.
+        FunctionKeyHotKeyCenter.register(
+            identifier: "com.izual.Easydict.colorPickerESC",
+            keyCode: kVK_Escape
+        ) {
+            stop()
+        }
     }
 
     /// Re-captures the whole screen frame when the cursor switches screens.
@@ -236,7 +239,7 @@ enum ColorPickerPanel {
         guard let screen, screen != snapshotScreen || snapshotImage == nil else { return }
 
         guard let cgImage = screen.takeScreenshot()?.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
-            log.error("[SnipTools] Failed to capture screen for color picker")
+            logError("[SnipTools] Failed to capture screen for color picker")
             return
         }
         snapshotImage = cgImage
@@ -246,6 +249,10 @@ enum ColorPickerPanel {
     /// Refreshes the snapshot if needed and repositions the HUD around the cursor.
     private static func updateHUD() {
         guard let panel else { return }
+        // Mouse-move storms fire far faster than the eye needs; cap ~30fps.
+        let now = CFAbsoluteTimeGetCurrent()
+        if now - lastHUDRefresh < 0.033 { return }
+        lastHUDRefresh = now
 
         let mouseLocation = NSEvent.mouseLocation
         refreshSnapshot(for: NSScreen.currentMouseScreen())
@@ -317,7 +324,7 @@ enum ColorPickerPanel {
 
         NSPasteboard.general.setString(hex)
         EZToast.showText(hex)
-        log.info("[SnipTools] Color picked, hex=\(hex, privacy: .public)")
+        logInfo("[SnipTools] Color picked, hex=\(hex)")
     }
 }
 
