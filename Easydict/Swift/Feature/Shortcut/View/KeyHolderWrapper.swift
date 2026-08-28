@@ -66,16 +66,11 @@ extension KeyHolderWrapper {
         @Binding var confictAlterMessage: ShortcutConfictAlertMessage
 
         func recordViewShouldBeginRecording(_: KeyHolder.RecordView) -> Bool {
-            MyConfiguration.shared.isRecordingSelectTextShortcutKey = true
-            return true
+            true
         }
 
         func recordView(_: KeyHolder.RecordView, canRecordKeyCombo _: Magnet.KeyCombo) -> Bool {
             true
-        }
-
-        func recordViewDidEndRecording(_: RecordView) {
-            MyConfiguration.shared.isRecordingSelectTextShortcutKey = false
         }
 
         func recordView(_ recordView: RecordView, didChangeKeyCombo keyCombo: KeyCombo?) {
@@ -107,6 +102,8 @@ extension KeyHolderWrapper {
             storeKeyCombo(with: keyCombo)
             ShortcutManager.shared.bindingGlobalShortcutAction(keyCombo: keyCombo, action: action)
         }
+
+        func recordViewDidEndRecording(_: RecordView) {}
 
         /// Restore the key combo for the given record view based on the shortcut type.
         func restoreKeyCombo(_ recordView: RecordView) {

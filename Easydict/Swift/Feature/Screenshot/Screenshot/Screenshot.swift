@@ -57,6 +57,7 @@ class Screenshot: NSObject {
         }
 
         isTakingScreenshot = true
+        captureStartedAt = Date()
         logInfo("startCapture began, presetScreens=\(presetFrozenImages.count), editMode=\(editModeEnabled)")
 
         /*
@@ -129,6 +130,7 @@ class Screenshot: NSObject {
         editModeEnabled = false
 
         isTakingScreenshot = false
+        captureStartedAt = nil
         removeResignActiveObserver()
         logInfo("finishCapture, image=\(image != nil ? "\(image!.size)" : "nil")")
         popCrosshairCursor()
@@ -233,6 +235,11 @@ class Screenshot: NSObject {
 
     // MARK: Private
 
+    /// Dismissing our own menu (the menu-safe hotkey path posts an in-place
+    /// click) bounces focus right after the overlay appears; that bounce must
+    /// not cancel the session the user just started.
+    private static let resignActiveGracePeriod: TimeInterval = 1.0
+
     /// The completion handler passed from startCapture.
     private var captureCompletionHandler: ((NSImage?) -> ())?
 
@@ -240,6 +247,9 @@ class Screenshot: NSObject {
 
     /// Cancels the capture session when the app loses focus; see startCapture.
     private var resignActiveObserver: (any NSObjectProtocol)?
+
+    /// When the session began; backs the resign-active grace period.
+    private var captureStartedAt: Date?
 
     /// Tracks whether the crosshair cursor is currently pushed onto the cursor stack.
     private var hasPushedCrosshairCursor = false
@@ -250,6 +260,11 @@ class Screenshot: NSObject {
             forName: NSApplication.willResignActiveNotification, object: nil, queue: .main
         ) { [weak self] _ in
             guard let self, isTakingScreenshot else { return }
+            if let started = captureStartedAt,
+               Date().timeIntervalSince(started) < Self.resignActiveGracePeriod {
+                logWarn("app resigned active within grace period, keeping session")
+                return
+            }
             logInfo("app resigned active during capture, canceling session")
             finishCapture(nil)
         }

@@ -53,17 +53,12 @@ NSString *const EZActionTypeInputQuery = @"input_query";
 NSString *const EZActionTypeOCRQuery = @"ocr_query";
 NSString *const EZActionTypeScreenshotOCR = @"silent_screenshot_ocr";
 NSString *const EZActionTypeInvokeQuery = @"invoke_query";
-NSString *const EZActionTypePasteboardOCR = @"pasteboard_ocr";
-NSString *const EZActionTypePasteboardTranslate = @"pasteboard_translate";
-NSString *const EZActionTypeTranslateAndReplace = @"translate_and_replace";
-NSString *const EZActionTypePolishAndReplace = @"polish_and_replace";
 
 #pragma mark - EZSelectTextType
 NSString *const EZSelectTextTypeAccessibility = @"accessibility_select_text";
 NSString *const EZSelectTextTypeSimulatedKey = @"simulate_key_select_text";
 NSString *const EZSelectTextTypeAppleScript = @"applescript_select_text";
 NSString *const EZSelectTextTypeMenuBarActionCopy = @"menu_bar_action_copy_select_text";
-
 NSString *const EZDefaultTTSServiceKey = @"EZDefaultTTSServiceKey";
 
 
@@ -97,26 +92,6 @@ NSString *const EZDefaultTTSServiceKey = @"EZDefaultTTSServiceKey";
         default:
             return @"none_window";
     }
-}
-
-+ (MMOrderedDictionary *)fixedWindowPositionDict {
-    MMOrderedDictionary *dict = [[MMOrderedDictionary alloc] initWithKeysAndObjects:
-                                                                 @(EZShowWindowPositionRight), NSLocalizedString(@"fixed_window_position_right", nil),
-                                                                 @(EZShowWindowPositionMouse), NSLocalizedString(@"fixed_window_position_mouse", nil),
-                                                                 @(EZShowWindowPositionFormer), NSLocalizedString(@"fixed_window_position_former", nil),
-                                                                 @(EZShowWindowPositionCenter), NSLocalizedString(@"fixed_window_position_center", nil),
-                                                                 nil];
-
-    return dict;
-}
-
-+ (MMOrderedDictionary *)translateWindowTypeDict {
-    MMOrderedDictionary *dict = [[MMOrderedDictionary alloc] initWithKeysAndObjects:
-                                                                 @(EZWindowTypeMini), NSLocalizedString(@"mini_window", nil),
-                                                                 @(EZWindowTypeFixed), NSLocalizedString(@"fixed_window", nil),
-                                                                 nil];
-
-    return dict;
 }
 
 @end

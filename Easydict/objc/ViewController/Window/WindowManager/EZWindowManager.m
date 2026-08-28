@@ -270,28 +270,6 @@ static EZWindowManager *_instance;
 
 #pragma mark - Show Floating Window
 
-/// Show floating window with OCR image, auto query or not.
-- (void)showFloatingWindowWithOCRImage:(NSImage *)image
-                             autoQuery:(BOOL)autoQuery
-                            actionType:(EZActionType)actionType {
-    if (!image) {
-        MMLogWarn(@"Image is nil, cannot show OCR window");
-        return;
-    }
-
-    MMLogInfo(@"Show window with OCR image");
-
-    EZWindowType windowType = MyConfiguration.shared.shortcutSelectTranslateWindowType;
-    EZBaseQueryWindow *window = [self windowWithType:windowType];
-
-    // Reset window height first, avoid being affected by previous window height.
-    [window.queryViewController resetTableView:^{
-        self.actionType = actionType;
-        [self showFloatingWindowType:windowType queryText:nil];
-        [window.queryViewController startOCRImage:image actionType:actionType autoQuery:autoQuery];
-    }];
-}
-
 /// Show floating window.
 - (void)showFloatingWindowType:(EZWindowType)windowType queryText:(nullable NSString *)queryText {
     [self showFloatingWindowType:windowType queryText:queryText actionType:self.actionType];
@@ -792,84 +770,6 @@ static EZWindowManager *_instance;
 
 #pragma mark - Menu Actions, Global Shortcut
 
-- (void)selectTextTranslate {
-    MMLogInfo(@"selectTextTranslate");
-
-    if (![self.eventMonitor isAccessibilityEnabled]) {
-        MMLogWarn(@"App is not trusted");
-        return;
-    }
-
-    [self saveFrontmostApplication];
-    if (Screenshot.shared.isTakingScreenshot) {
-        return;
-    }
-
-    EZWindowType windowType = MyConfiguration.shared.shortcutSelectTranslateWindowType;
-    MMLogInfo(@"selectTextTranslate windowType: %@", @(windowType));
-    self.eventMonitor.actionType = EZActionTypeShortcutQuery;
-    [self.eventMonitor getSelectedTextWithCompletion:^(NSString *_Nullable text) {
-        self.actionType = self.eventMonitor.actionType;
-        self.selectedText = text;
-
-        // Run it on main thread to avoid some UI bugs.
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self showFloatingWindowType:windowType queryText:self.selectedText];
-        });
-    }];
-}
-
-- (void)inputTranslate {
-    MMLogInfo(@"inputTranslate");
-
-    [self saveFrontmostApplication];
-    if (Screenshot.shared.isTakingScreenshot) {
-        return;
-    }
-
-    EZWindowType windowType = MyConfiguration.shared.shortcutSelectTranslateWindowType;
-
-    if (self.floatingWindowType == windowType && self.floatingWindow.isVisible) {
-        [self closeFloatingWindow];
-        return;
-    }
-
-    NSString *queryText = nil;
-    if ([MyConfiguration.shared clearInput]) {
-        queryText = @"";
-    }
-
-    self.actionType = EZActionTypeNone;
-    [self showFloatingWindowType:windowType queryText:queryText];
-}
-
-/// Show mini window at last positon.
-- (void)showMiniFloatingWindow {
-    MMLogInfo(@"showMiniFloatingWindow");
-
-    EZWindowType windowType = MyConfiguration.shared.mouseSelectTranslateWindowType;
-
-    if (self.floatingWindowType == windowType && self.floatingWindow.isVisible) {
-        [self closeFloatingWindow];
-        return;
-    }
-
-    self.actionType = EZActionTypeNone;
-    [self showFloatingWindowType:windowType queryText:nil];
-}
-
-- (void)snipTranslate {
-    MMLogInfo(@"snipTranslate");
-
-    // Close non-main floating window if not pinned. Fix https://github.com/tisfeng/Easydict/issues/126
-    [self closeFloatingWindowIfNotPinnedOrMain];
-
-    [self captureWithRestorePreviousApp:NO completion:^(NSImage *_Nullable image) {
-        BOOL autoQuery = [MyConfiguration.shared autoQueryOCRText];
-        [self showFloatingWindowWithOCRImage:image autoQuery:autoQuery actionType:EZActionTypeOCRQuery];
-    }];
-}
-
 /// Silent screenshot and OCR, without showing floating window.
 - (void)silentScreenshotOCR {
     MMLogInfo(@"Silent screenshot and OCR");
@@ -886,28 +786,6 @@ static EZWindowManager *_instance;
         [viewController resetQueryModelForBackgroundOCR];
         [viewController startOCRImage:image actionType:self.actionType autoQuery:NO];
     }];
-}
-
-/// Translate text from pasteboard, support both image and text.
-- (void)pasteboardTranslate:(EZWindowType)windowType {
-    MMLogInfo(@"Pasteboard Translate with windowType: %@", @(windowType));
-
-    self.actionType = EZActionTypePasteboardTranslate;
-    BOOL autoQuery = [MyConfiguration.shared autoQueryPastedText];
-
-    // Try to read image from pasteboard first.
-    NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
-    NSImage *image = pasteboard.image;
-    if (image) {
-        [self showFloatingWindowWithOCRImage:image autoQuery:autoQuery actionType:self.actionType];
-        return;
-    }
-
-    // If no image, read string from pasteboard.
-    NSString *queryText = pasteboard.string;
-    if (queryText.length > 0) {
-        [self showFloatingWindowType:windowType queryText:queryText autoQuery:autoQuery actionType:self.actionType];
-    }
 }
 
 /**

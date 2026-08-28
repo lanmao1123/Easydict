@@ -33,6 +33,9 @@ class ShortcutManager: NSObject {
          the user customized (the old flags could clobber those).
          */
 
+        // Every launch: fix known-broken stored combos before they bind.
+        repairLegacyBrokenHotkeys()
+
         // Bind global shortcut actions
         setupGlobalShortcutActions()
 

@@ -27,6 +27,10 @@ enum EnglishPronunciation: Int {
     case us
 }
 
+// MARK: - EZShowWindowPosition + Defaults.Serializable
+
+extension EZShowWindowPosition: Defaults.Serializable {}
+
 // MARK: - MyConfiguration
 
 /// Singleton class to manage application configuration settings.
@@ -69,7 +73,6 @@ class MyConfiguration: NSObject {
     @DefaultsWrapper(.pinWindowWhenDisplayed) var pinWindowWhenDisplayed
     @DefaultsWrapper(.hideMainWindow) var hideMainWindow: Bool
 
-    @DefaultsWrapper(.clearQueryWhenInputTranslate) var clearInput: Bool
     @DefaultsWrapper(.keepPrevResultWhenSelectTranslateTextIsEmpty) var keepPrevResultWhenEmpty:
         Bool
     @DefaultsWrapper(.selectQueryTextWhenWindowActivate) var selectQueryTextWhenWindowActivate: Bool
@@ -130,7 +133,6 @@ class MyConfiguration: NSObject {
     let updater = GlobalContext.shared.updaterController.updater
     let fontSizes: [CGFloat] = [1, 1.1, 1.2, 1.3, 1.4]
     var disabledAutoSelect: Bool = false
-    var isRecordingSelectTextShortcutKey: Bool = false
     var cancellables: Set<AnyCancellable> = []
 
     var fontSizeRatio: CGFloat {
@@ -366,13 +368,6 @@ class MyConfiguration: NSObject {
             }
             .store(in: &cancellables)
 
-        Defaults.publisher(.clearQueryWhenInputTranslate, options: [])
-            .removeDuplicates()
-            .sink { [weak self] _ in
-                self?.didSetClearInput()
-            }
-            .store(in: &cancellables)
-
         Defaults.publisher(.fontSizeOptionIndex, options: [])
             .removeDuplicates()
             .sink { [weak self] _ in
@@ -548,10 +543,6 @@ extension MyConfiguration {
 
     fileprivate func didSetAllowAnalytics() {
         logSettings(["allow_analytics": allowAnalytics])
-    }
-
-    fileprivate func didSetClearInput() {
-        logSettings(["clear_input": clearInput])
     }
 
     fileprivate func didSetFontSizeIndex() {

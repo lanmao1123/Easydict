@@ -35,6 +35,10 @@ struct MenuItemView: View {
 
             Divider()
 
+            clipboardHistoryItem
+
+            Divider()
+
             settingItem.keyboardShortcut(.init(","))
             checkUpdateItem
             helpItem
@@ -75,6 +79,13 @@ struct MenuItemView: View {
 
     @ViewBuilder private var silentScreenshotOCRItem: some View {
         menuItem(for: .silentScreenshotOCR)
+    }
+
+    /// F2 is a bare function key: its glyph cannot render as a SwiftUI menu
+    /// shortcut, so the label simply shows without a key hint.
+    @ViewBuilder private var clipboardHistoryItem: some View {
+        menuItem(for: .clipboardHistory)
+            .keyboardShortcut(.clipboardHistory)
     }
 
     // MARK: - Other Items

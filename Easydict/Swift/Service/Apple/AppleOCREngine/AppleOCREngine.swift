@@ -130,33 +130,6 @@ public class AppleOCREngine: NSObject {
         return mostConfidentResult
     }
 
-    func pasteboardOCR() {
-        logInfo("Pasteboard OCR")
-        if let image = NSPasteboard.general.image {
-            Task {
-                do {
-                    try await showOCRWindow(image: image)
-                } catch {
-                    logError("Pasteboard OCR failed: \(error.localizedDescription)")
-                }
-            }
-        }
-    }
-
-    @objc
-    func showOCRWindow(image: NSImage, language: Language = .auto) async throws {
-        let result = try await recognizeText(image: image, language: language)
-        let mergedText = result.mergedText
-
-        Task { @MainActor in
-            OCRWindowManager.shared.showWindow(
-                image: image,
-                bands: textProcessor.bands,
-                mergedText: mergedText
-            )
-        }
-    }
-
     /// Callback-based text recognition api
     func recognizeText(
         image: NSImage,

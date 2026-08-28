@@ -114,9 +114,6 @@ extension Defaults.Keys {
     static let allowCrashLog = Key<Bool>("EZConfiguration_kAllowCrashLogKey", default: true)
     static let allowAnalytics = Key<Bool>("EZConfiguration_kAllowAnalyticsKey", default: true)
 
-    static let clearQueryWhenInputTranslate = Key<Bool>(
-        "EZConfiguration_kClearInputKey", default: false
-    )
     static let keepPrevResultWhenSelectTranslateTextIsEmpty = Key<Bool>(
         "EZConfiguration_kKeepPrevResultKey",
         default: true
@@ -162,9 +159,6 @@ extension Defaults.Keys {
     )
     static var enableOCRTextNormalization = Key<Bool>(
         "enableOCRTextNormalization", default: false
-    )
-    static var showOCRMenuItems = Key<Bool>(
-        "showOCRMenuItems", default: false
     )
     /// Controls whether the screenshot tip layer is hidden during capture.
     static var isScreenshotTipLayerHidden = Key<Bool>(

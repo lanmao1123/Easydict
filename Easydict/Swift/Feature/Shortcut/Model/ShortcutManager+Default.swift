@@ -21,9 +21,41 @@ extension ShortcutManager {
     private func setDefaultGlobalShortcutKeys() {
         /*
          SnipTools keys are covered by inline `default:` values on their
-         Defaults.Keys (F1/F3/F4/⌥P), so nothing to write here — a write here
-         would clobber keys the user customized later.
+         Defaults.Keys, so nothing to write here — a write here would clobber
+         keys the user customized later. Legacy repair runs every launch from
+         `setupShortcut`, not just on first launch.
          */
+    }
+
+    /**
+     The retired one-shot migration wrote wrong combos into storage — the F2
+     clipboard slot got ⌘[ and the F3 pin slot got ⌥Z — which shadow the
+     inline defaults and leave the bare function keys firing nothing. Exact
+     keyCode + modifier fingerprint keeps any combo the user actually
+     recorded untouched.
+     */
+    func repairLegacyBrokenHotkeys() {
+        // Carbon modifier masks as Magnet persists them: cmd 256, option 2048.
+        let brokenCombos: [(Defaults.Key<KeyCombo?>, keyCode: Int, modifiers: Int, fallback: String)] = [
+            (.clipboardHistoryShortcut, 33, 256, "F2"), // stored ⌘[
+            (.pinToScreenShortcut, 6, 2048, "F3"), // stored ⌥Z
+        ]
+        for (key, keyCode, modifiers, fallback) in brokenCombos {
+            guard let combo = Defaults[key],
+                  combo.currentKeyCode == keyCode,
+                  combo.modifiers == modifiers
+            else { continue }
+            Defaults[key] = nil
+            logWarn("repaired legacy broken hotkey, key=\(key.name), reset to default \(fallback)")
+        }
+
+        // Storage of retired features (old ⌥C screenshot OCR, ⌥F mini window)
+        // that no code reads anymore.
+        for staleKey in ["EZScreenshotOCRShortcutKey2_keyHolder", "EZShowMiniShortcutKey_keyHolder"] {
+            guard UserDefaults.standard.object(forKey: staleKey) != nil else { continue }
+            UserDefaults.standard.removeObject(forKey: staleKey)
+            logInfo("removed stale hotkey storage, key=\(staleKey)")
+        }
     }
 
     private func setDefaultAppShortcutKeys() {
@@ -158,5 +190,21 @@ extension ShortcutManager {
 
         hotKey.register()
         logInfo("binding modifier hotkey via Magnet, action=\(action.rawValue), keyCombo=\(keyCombo)")
+
+        if !keyCombo.doubledModifiers {
+            /*
+             Mirror the combo into the menu-safe channel: Carbon hotkeys are
+             dead while any menu tracks, and pressing the very combo a menu
+             item displays is the most natural gesture. claimEmission's
+             cooldown keeps the two channels from double-firing one press.
+             */
+            MenuSafeHotKeyChannel.shared.enroll(
+                identifier: action.rawValue,
+                keyCode: Int(keyCombo.currentKeyCode),
+                modifiers: keyCombo.keyEquivalentModifierMask
+            ) { _ in
+                action.executeAction()
+            }
+        }
     }
 }

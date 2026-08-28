@@ -113,7 +113,6 @@ open class QueryModel: NSObject, NSCopying {
         didSet {
             let isOCRAction = actionType == .ocrQuery
                 || actionType == .screenshotOCR
-                || actionType == .pasteboardOCR
                 || actionType == .none
             if !isOCRAction {
                 ocrImage = nil

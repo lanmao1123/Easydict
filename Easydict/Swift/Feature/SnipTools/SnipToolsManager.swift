@@ -10,9 +10,10 @@ import AppKit
 
 /// Entry manager for the SnipTools feature set.
 ///
-/// Coordinates four global actions: annotated screenshot capture (F1),
-/// pasteboard pin-to-screen (F3), pasteboard-image-to-file-path copying (F4)
-/// and the color picker HUD.
+/// Coordinates the global actions: annotated screenshot capture (F1),
+/// pasteboard pin-to-screen (F3) and pasteboard-image-to-file-path
+/// copying (F4).
+
 @MainActor
 final class SnipToolsManager: NSObject {
     // MARK: Lifecycle

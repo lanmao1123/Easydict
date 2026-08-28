@@ -37,18 +37,22 @@ final class MenuSafeHotKeyChannel {
 
     static let shared = MenuSafeHotKeyChannel()
 
-    /// Registers a menu-safe fallback for a bare function-key hotkey.
+    /// Registers a menu-safe fallback for a hotkey. `modifiers` are the
+    /// required NSEvent modifier flags (empty for bare function keys); a
+    /// press only dispatches when every required modifier is also held.
     /// `fire` receives preset frozen frames keyed by screen when menus were
     /// detected at trigger time; actions that don't capture screens ignore it.
     func enroll(
         identifier: String,
         keyCode: Int,
+        modifiers: NSEvent.ModifierFlags = [],
         capturesFrozenFrame: Bool = false,
         fire: @escaping @MainActor ([NSScreen: NSImage]) -> ()
     ) {
         lock.lock()
         enrollments[identifier] = Enrollment(
             keyCode: keyCode,
+            modifiers: modifiers,
             capturesFrozenFrame: capturesFrozenFrame,
             fire: fire
         )
@@ -105,12 +109,19 @@ final class MenuSafeHotKeyChannel {
 
     private struct Enrollment {
         let keyCode: Int
+        let modifiers: NSEvent.ModifierFlags
         let capturesFrozenFrame: Bool
         let fire: @MainActor ([NSScreen: NSImage]) -> ()
     }
 
     private static let pollInterval: TimeInterval = 0.06
     private static let cooldown: TimeInterval = 0.6
+
+    /// Modifier bits this channel reasons about. CGEventFlags and
+    /// NSEvent.ModifierFlags share these numeric values (shift 0x20000,
+    /// control 0x40000, option 0x80000, command 0x100000).
+    private static let meaningfulModifiers: NSEvent.ModifierFlags = [.command, .option, .shift, .control]
+    private static let comparableModifierMask: UInt64 = 0x20_000 | 0x40_000 | 0x80_000 | 0x100_000
 
     private let lock = NSLock()
     private var enrollments: [String: Enrollment] = [:]
@@ -121,6 +132,19 @@ final class MenuSafeHotKeyChannel {
     private var installed = false
     private var eventTap: CFMachPort?
     private var pollTimer: DispatchSourceTimer?
+
+    /// A press matches when every required modifier is held; a bare
+    /// function key additionally requires that no other modifier is held
+    /// (⌘F1 must not fire F1). Extra modifiers on top of a required combo
+    /// are tolerated, matching how users mash ⌥⇧ combos.
+    private func modifiersMatch(required: NSEvent.ModifierFlags, actualRaw: UInt64) -> Bool {
+        let actual = NSEvent.ModifierFlags(rawValue: UInt(actualRaw))
+            .intersection(Self.meaningfulModifiers)
+        if required.isEmpty {
+            return actual.isEmpty
+        }
+        return required.isSubset(of: actual)
+    }
 
     private func installIfNeeded() {
         lock.lock()
@@ -176,10 +200,20 @@ final class MenuSafeHotKeyChannel {
                 lock.lock()
                 let codes = Array(keyCodes)
                 lock.unlock()
+                // Union both session states so a lag in one source can't
+                // drop a modifier that was clearly held.
+                let flagsRaw = CGEventSource.flagsState(.combinedSessionState).rawValue
+                    | CGEventSource.flagsState(.hidSystemState).rawValue
+                let modifiers = flagsRaw & Self.comparableModifierMask
                 for keyCode in codes {
                     let down = CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(keyCode))
                         || CGEventSource.keyState(.hidSystemState, key: CGKeyCode(keyCode))
-                    updatePress(isDown: down, forKeyCode: keyCode, source: "poll")
+                    updatePress(
+                        isDown: down,
+                        forKeyCode: keyCode,
+                        actualModifiers: modifiers,
+                        source: "poll"
+                    )
                 }
             }
             timer.resume()
@@ -254,17 +288,22 @@ final class MenuSafeHotKeyChannel {
         }
 
         let keyCode = Int(event.getIntegerValueField(.keyboardEventKeycode))
+        let modifiers = event.flags.rawValue & Self.comparableModifierMask
         updatePress(
             isDown: type == .keyDown,
             forKeyCode: keyCode,
+            actualModifiers: modifiers,
             source: "tap"
         )
     }
 
     /// Edge detector shared by both channels: fire once per physical press.
-    private func updatePress(isDown: Bool, forKeyCode keyCode: Int, source: String) {
+    /// Unenrolled keys (regular typing) and modifier mismatches stay fully
+    /// silent — they used to flood the log with every keystroke.
+    private func updatePress(isDown: Bool, forKeyCode keyCode: Int, actualModifiers: UInt64, source: String) {
         var freshPress = false
         lock.lock()
+        let enrollment = enrollments.values.first { $0.keyCode == keyCode }
         if isDown {
             freshPress = !pressedKeys.contains(keyCode)
             pressedKeys.insert(keyCode)
@@ -272,10 +311,14 @@ final class MenuSafeHotKeyChannel {
             pressedKeys.remove(keyCode)
         }
         lock.unlock()
-        guard freshPress else { return }
+
+        guard let enrollment, freshPress else { return }
+        guard modifiersMatch(required: enrollment.modifiers, actualRaw: actualModifiers) else { return }
 
         let claimed = claimEmission(keyCode: keyCode)
-        logInfo("fresh keyPress, source=\(source), keyCode=\(keyCode), claimed=\(claimed)")
+        logInfo(
+            "fresh keyPress, source=\(source), keyCode=\(keyCode), requiredModifiers=\(enrollment.modifiers.rawValue), claimed=\(claimed)"
+        )
         guard claimed else {
             logInfo("keyPress ignored, already claimed by other channel, keyCode=\(keyCode)")
             return
