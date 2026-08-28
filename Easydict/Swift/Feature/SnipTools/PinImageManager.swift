@@ -107,15 +107,59 @@ final class PinImageManager: NSObject {
 
     // MARK: Private
 
+    /// Observer box handed to the C tap callback through its user-info pointer.
+    private final class PinchTapBox {
+        // MARK: Lifecycle
+
+        init(onMagnify: @escaping (CGFloat) -> ()) {
+            self.onMagnify = onMagnify
+        }
+
+        // MARK: Internal
+
+        let onMagnify: (CGFloat) -> ()
+
+        /// Observes one gesture event. The NSEvent conversion expands the raw
+        /// CG gesture event into typed magnify/rotate/swipe events; only the
+        /// magnify kind drives pin zoom.
+        func deliver(_ event: NSEvent) {
+            if event.type == .magnify, abs(event.magnification) > 0.0001 {
+                onMagnify(event.magnification)
+            }
+            if Date().timeIntervalSince(lastGestureLogAt) > 1.5 {
+                lastGestureLogAt = Date()
+                let magnification = event.type == .magnify ? event.magnification : 0
+                logInfo(
+                    "[SnipTools] Gesture tap event, type=\(event.type.rawValue), subtype=\(event.subtype.rawValue), magnification=\(magnification)"
+                )
+            }
+        }
+
+        // MARK: Private
+
+        /// Throttles gesture diagnostics to one line per 1.5s.
+        private var lastGestureLogAt = Date.distantPast
+    }
+
     private var pins: [PinImagePanel] = []
 
-    /// Local monitor feeding trackpad pinch zooms, alive while pins exist.
+    /// Session-level event tap observing system-wide pinch gestures. This is
+    /// the PRIMARY pinch channel: on current macOS, gesture events are only
+    /// dispatched to the active app, so NSEvent monitors (local sees nothing
+    /// while another app is active; the global one no longer sees gestures)
+    /// miss the "pin over someone else's app" case entirely.
+    private var pinchTap: CFMachPort?
+    private var pinchTapSource: CFRunLoopSource?
+    private var pinchTapBox: PinchTapBox?
+
+    /// Last gesture diagnostics line timestamp, throttling tap logs.
+    private var lastGestureLogAt = Date.distantPast
+
+    /// Local monitor feeding trackpad pinch zooms. FALLBACK only — used when
+    /// the session tap cannot be created (missing permission).
     private var magnifyMonitor: Any?
 
-    /// Global twin of the magnify monitor: gestures over our pin while
-    /// ANOTHER app is active are delivered to that app, never to the local
-    /// monitor — exactly the "pin, click elsewhere, pinch" case. Gesture-type
-    /// global monitors need no accessibility grant (only key events do).
+    /// Global twin of the magnify monitor (same fallback story).
     private var globalMagnifyMonitor: Any?
 
     /// Local monitor copying the focused pin on ⌘C, alive while pins exist.
@@ -123,17 +167,13 @@ final class PinImageManager: NSObject {
 
     // MARK: Event monitors
 
-    /*
-     SwiftUI internals swallow `magnify` events inside the hosting view, so
-     subclass overrides never see them. This local monitor sits upstream of
-     view dispatch and zooms the pin under the cursor directly.
-     */
     private func installEventMonitorsIfNeeded() {
-        installMagnifyMonitorIfNeeded()
+        installPinchTapIfNeeded()
         installKeyDownMonitorIfNeeded()
     }
 
     private func removeEventMonitors() {
+        removePinchTap()
         if let magnifyMonitor {
             NSEvent.removeMonitor(magnifyMonitor)
             self.magnifyMonitor = nil
@@ -145,6 +185,70 @@ final class PinImageManager: NSObject {
         if let keyDownMonitor {
             NSEvent.removeMonitor(keyDownMonitor)
             self.keyDownMonitor = nil
+        }
+    }
+
+    /// Installs a listen-only session event tap for gesture events. Listen-only
+    /// taps never modify or swallow events; they only observe, so this cannot
+    /// interfere with the frontmost app's own gesture handling.
+    private func installPinchTapIfNeeded() {
+        guard pinchTap == nil else { return }
+
+        let box = PinchTapBox { [weak self] magnification in
+            MainActor.assumeIsolated {
+                self?.handleSystemPinch(magnification: magnification)
+            }
+        }
+        pinchTapBox = box
+        let boxed = Unmanaged.passRetained(box)
+
+        let callback: CGEventTapCallBack = { _, type, event, userInfo in
+            // kCGEventGesture: the Swift CGEventType enum has no gesture case,
+            // so compare raw values (29 = system gesture, magnify included).
+            guard type.rawValue == 29, let userInfo else {
+                return Unmanaged.passUnretained(event)
+            }
+            let unboxed = Unmanaged<PinchTapBox>.fromOpaque(userInfo).takeUnretainedValue()
+            if let nsEvent = NSEvent(cgEvent: event) {
+                unboxed.deliver(nsEvent)
+            }
+            return Unmanaged.passUnretained(event)
+        }
+
+        guard let tap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .listenOnly,
+            eventsOfInterest: CGEventMask(1 << 29),
+            callback: callback,
+            userInfo: boxed.toOpaque()
+        ) else {
+            logWarn("[SnipTools] System pinch tap unavailable, falling back to NSEvent monitors")
+            boxed.release()
+            pinchTapBox = nil
+            installMagnifyMonitorIfNeeded()
+            return
+        }
+
+        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+        CGEvent.tapEnable(tap: tap, enable: true)
+        pinchTap = tap
+        pinchTapSource = source
+        logInfo("[SnipTools] System pinch tap installed (session-level, listen-only)")
+    }
+
+    private func removePinchTap() {
+        if let pinchTap {
+            CGEvent.tapEnable(tap: pinchTap, enable: false)
+            if let pinchTapSource {
+                CFRunLoopRemoveSource(CFRunLoopGetMain(), pinchTapSource, .commonModes)
+            }
+            CFMachPortInvalidate(pinchTap)
+            self.pinchTap = nil
+            pinchTapSource = nil
+            pinchTapBox = nil
+            logInfo("[SnipTools] System pinch tap removed")
         }
     }
 
@@ -184,6 +288,19 @@ final class PinImageManager: NSObject {
             }
         }
         logInfo("[SnipTools] Pin keyDown monitor installed")
+    }
+
+    /// Zooms through the system tap channel: same target resolution as the
+    /// NSEvent fallback, but sees gestures regardless of which app is active.
+    private func handleSystemPinch(magnification: CGFloat) {
+        guard !pins.isEmpty else { return }
+
+        let mouse = NSEvent.mouseLocation
+        let target = pins.last(where: { NSPointInRect(mouse, $0.frame) })
+            ?? pins.first(where: { $0.isKeyWindow })
+        guard let target else { return }
+
+        target.zoom(by: 1 + magnification)
     }
 
     /// Handles ⌘C (copy) and ESC (close) over a focused pin; every other key

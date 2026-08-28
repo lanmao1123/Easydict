@@ -83,10 +83,9 @@ struct PinImageView: View {
 // MARK: - PinImageHostingView
 
 /// Hosting view that turns mouse wheel scrolling into zoom steps. Trackpad
-/// pinches are primarily handled by PinImageManager's event monitors; this
-/// view also overrides `magnify` as a backup path in case the monitors are
-/// unavailable. The manager swallows magnify events it handles, so the two
-/// paths never zoom twice for one gesture.
+/// pinches are handled by PinImageManager's system-level session tap, which
+/// observes gestures regardless of which app is active; this view must NOT
+/// also zoom on `magnify` or one gesture would zoom the pin twice.
 final class PinImageHostingView<Content: View>: NSHostingView<Content> {
     /// Called with a multiplicative zoom factor derived from the input.
     var onZoom: ((CGFloat) -> ())?
@@ -103,15 +102,5 @@ final class PinImageHostingView<Content: View>: NSHostingView<Content> {
         // exp() keeps precise trackpad deltas smooth; one wheel notch (±10)
         // gives ~18% zoom, close to Snipaste's step.
         onZoom?(exp(deltaY / 60))
-    }
-
-    override func magnify(with event: NSEvent) {
-        // Only reached when the manager's monitor passed the event through
-        // (no pin under the cursor and no focused pin) or is not installed.
-        guard abs(event.magnification) > 0.0001 else {
-            super.magnify(with: event)
-            return
-        }
-        onZoom?(1 + event.magnification)
     }
 }
