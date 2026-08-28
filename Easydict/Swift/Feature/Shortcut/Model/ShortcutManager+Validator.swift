@@ -46,8 +46,7 @@ extension ShortcutManager {
                 return nil
             }
             guard let key = Sauce.shared.key(for: Int(carbonKeyCode)) else { return nil }
-            guard let keyCombo = KeyCombo(key: key, carbonModifiers: carbonModifiers) else { return nil }
-            return keyCombo
+            return KeyCombo(key: key, carbonModifiers: carbonModifiers)
         }
     }
 }

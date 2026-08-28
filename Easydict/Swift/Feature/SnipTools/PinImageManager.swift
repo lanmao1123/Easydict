@@ -27,14 +27,13 @@ final class PinImageManager: NSObject {
     func pinFromPasteboard() {
         /*
          The global Carbon hotkey consumes F3 at the system level before the
-         editor's local key monitor can see it, so this is the ONLY path that
-         runs for F3 during editing: route it to the editor, which pins the
-         annotated result directly.
+         capture overlay's key handler can see it, so this is the ONLY path
+         that runs for F3 during a capture session: route it to the engine,
+         which pins the annotated result directly.
          */
-        if Screenshot.shared.editModeEnabled,
-           let editor = Screenshot.shared.activeAnnotationEditor {
-            logInfo("[SnipTools] F3 routed to annotation editor pin")
-            editor.pinAndFinish()
+        if Screenshot.shared.isTakingScreenshot {
+            logInfo("[SnipTools] F3 routed to capture session pin")
+            Screenshot.shared.finishCaptureAndPin()
             return
         }
 
@@ -154,14 +153,16 @@ final class PinImageManager: NSObject {
 
         magnifyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.magnify]) { [weak self] event in
             guard let self else { return event }
-            MainActor.assumeIsolated {
+            let handled = MainActor.assumeIsolated {
                 self.handleMagnify(event)
             }
-            return event
+            // Swallow handled gestures so the hosting view never zooms twice;
+            // pass the rest through to the view-level backup path.
+            return handled ? nil : event
         }
         globalMagnifyMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.magnify]) { [weak self] event in
             MainActor.assumeIsolated {
-                self?.handleMagnify(event, source: "global")
+                _ = self?.handleMagnify(event, source: "global")
             }
         }
         logInfo("[SnipTools] Pin magnify monitors installed (local + global)")
@@ -206,18 +207,34 @@ final class PinImageManager: NSObject {
         return nil
     }
 
-    /// Zooms the pin under the cursor by the pinch's incremental factor.
-    /// Exactly one of the two monitors fires per gesture: the local one while
-    /// our app is active, the global one while another app holds focus.
-    private func handleMagnify(_ event: NSEvent, source: String = "local") {
+    /// Zooms the pin under the cursor by the pinch's incremental factor; when
+    /// the cursor is elsewhere, the focused (key) pin is zoomed instead so a
+    /// selected pin can be resized hands-off. Exactly one of the two monitors
+    /// fires per gesture: the local one while our app is active, the global
+    /// one while another app holds focus. Returns whether the pinch was used,
+    /// so the local monitor can swallow handled events.
+    @discardableResult
+    private func handleMagnify(_ event: NSEvent, source: String = "local") -> Bool {
+        guard abs(event.magnification) > 0.0001 else { return false }
+
         let mouse = NSEvent.mouseLocation
-        guard let target = pins.last(where: { NSPointInRect(mouse, $0.frame) }),
-              abs(event.magnification) > 0.0001 else { return }
+        let target = pins.last(where: { NSPointInRect(mouse, $0.frame) })
+            ?? pins.first(where: { $0.isKeyWindow })
+
+        guard let target else {
+            if event.phase == .began {
+                logInfo(
+                    "[SnipTools] Pinch ignored, no pin under cursor or focused, pins=\(pins.count), source=\(source)"
+                )
+            }
+            return false
+        }
 
         if event.phase == .began {
             logInfo("[SnipTools] Pinch zoom began over pin, source=\(source)")
         }
         target.zoom(by: 1 + event.magnification)
+        return true
     }
 
     private func place(panel: PinImagePanel, index: Int, atGlobalRect globalRect: CGRect?) {

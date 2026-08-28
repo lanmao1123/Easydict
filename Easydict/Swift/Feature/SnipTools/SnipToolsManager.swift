@@ -43,10 +43,12 @@ final class SnipToolsManager: NSObject {
         Screenshot.shared.editModeEnabled = true
         logInfo("startScreenshotEdit began, presetScreens=\(presetFrozenImages.count)")
         await withCheckedContinuation { continuation in
-            Screenshot.shared.startCapture(presetFrozenImages: presetFrozenImages) { image in
-                if let image {
-                    image.writeToPasteboard()
-                }
+            /*
+             The capture engine copies the composited image itself (PNG+TIFF+
+             backing file), so the completion only releases the continuation —
+             writing the pasteboard here again would downgrade that payload.
+             */
+            Screenshot.shared.startCapture(presetFrozenImages: presetFrozenImages) { _ in
                 continuation.resume()
             }
         }

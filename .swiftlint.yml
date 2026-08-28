@@ -82,3 +82,6 @@ excluded:
   - "**/checkouts/**" # Exclude all SPM downloaded dependencies
   - "**/DerivedData/**" # Exclude Xcode derived data
   - "**/SherpaOnnx.swift"
+  # Ported macshot capture engine: upstream code intentionally kept verbatim,
+  # its file/type/function sizes exceed this repo's style thresholds.
+  - "Easydict/Swift/Feature/MacshotCapture"
