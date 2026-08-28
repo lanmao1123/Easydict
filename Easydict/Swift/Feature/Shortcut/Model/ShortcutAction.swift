@@ -22,15 +22,11 @@ public enum ShortcutAction: String, Identifiable, CaseIterable {
     case snipToolsEditScreen
     case pinToScreen
     case copyImagePath
-    case colorPicker
 
     // Clipboard history
     case clipboardHistory
 
-    // OCR specific shortcuts
-    case screenshotOCR
-    case pasteboardOCR
-    case showOCRWindow
+    // OCR specific shortcuts (silent-only per product decision)
     case silentScreenshotOCR
 
     // In App shortcuts
@@ -62,11 +58,7 @@ extension ShortcutAction {
         .snipToolsEditScreen,
         .pinToScreen,
         .copyImagePath,
-        .colorPicker,
         .clipboardHistory,
-        .screenshotOCR,
-        .pasteboardOCR,
-        .showOCRWindow,
         .silentScreenshotOCR,
     ]
 
@@ -145,12 +137,6 @@ extension ShortcutAction {
                 defaultsKey: .copyImagePathShortcut,
                 action: { await SnipToolsManager.shared.copyImagePath() }
             ),
-            .colorPicker: .init(
-                titleKey: "menu_color_picker",
-                icon: .eyedropper,
-                defaultsKey: .colorPickerShortcut,
-                action: { await SnipToolsManager.shared.startColorPicker() }
-            ),
             .clipboardHistory: .init(
                 titleKey: "menu_clipboard_history",
                 icon: .clipboard,
@@ -159,24 +145,6 @@ extension ShortcutAction {
             ),
 
             // OCR specific shortcuts
-            .screenshotOCR: .init(
-                titleKey: "menu_screenshot_OCR",
-                icon: .cameraMeteringMultispot,
-                defaultsKey: .screenshotOCRShortcut,
-                action: { windowManager.screenshotOCR() }
-            ),
-            .pasteboardOCR: .init(
-                titleKey: "menu_pasteboard_OCR",
-                icon: .listClipboard,
-                defaultsKey: .pasteboardOCRShortcut,
-                action: { AppleOCREngine().pasteboardOCR() }
-            ),
-            .showOCRWindow: .init(
-                titleKey: "menu_show_ocr_window",
-                icon: .textAndCommandMacwindow,
-                defaultsKey: .showOCRWindowShortcut,
-                action: { OCRWindowManager.shared.showWindow() }
-            ),
             .silentScreenshotOCR: .init(
                 titleKey: "menu_silent_screenshot_OCR",
                 icon: .cameraMeteringSpot,

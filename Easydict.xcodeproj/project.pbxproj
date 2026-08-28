@@ -413,7 +413,6 @@
 		0D0C4B0000000000000000A8 /* PinImageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000B8 /* PinImageManager.swift */; };
 		0D0C4B0000000000000000A9 /* PinImagePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000B9 /* PinImagePanel.swift */; };
 		0D0C4B0000000000000000AA /* PinImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000BA /* PinImageView.swift */; };
-		0D0C4B0000000000000000AB /* ColorPickerPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000BB /* ColorPickerPanel.swift */; };
 		0D0C4B0000000000000000D1 /* FunctionKeyHotKeyCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000D2 /* FunctionKeyHotKeyCenter.swift */; };
 		0D0C4B0000000000000000F2 /* MenuSafeHotKeyChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000F3 /* MenuSafeHotKeyChannel.swift */; };
 		0D0C4B0000000000000000F4 /* EZURLActionRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000F5 /* EZURLActionRouter.swift */; };
@@ -1163,7 +1162,6 @@
 		0D0C4B0000000000000000B8 /* PinImageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinImageManager.swift; sourceTree = "<group>"; };
 		0D0C4B0000000000000000B9 /* PinImagePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinImagePanel.swift; sourceTree = "<group>"; };
 		0D0C4B0000000000000000BA /* PinImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinImageView.swift; sourceTree = "<group>"; };
-		0D0C4B0000000000000000BB /* ColorPickerPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorPickerPanel.swift; sourceTree = "<group>"; };
 		0D0C4B0000000000000000D2 /* FunctionKeyHotKeyCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FunctionKeyHotKeyCenter.swift; sourceTree = "<group>"; };
 		0D0C4B0000000000000000F3 /* MenuSafeHotKeyChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuSafeHotKeyChannel.swift; sourceTree = "<group>"; };
 		0D0C4B0000000000000000F5 /* EZURLActionRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EZURLActionRouter.swift; sourceTree = "<group>"; };
@@ -2003,7 +2001,6 @@
 		0D0C4B0000000000000000C2 /* SnipTools */ = {
 			isa = PBXGroup;
 			children = (
-				0D0C4B0000000000000000BB /* ColorPickerPanel.swift */,
 				0D0C4B0000000000000000B8 /* PinImageManager.swift */,
 				0D0C4B0000000000000000BA /* PinImageView.swift */,
 				0D0C4B0000000000000000B9 /* PinImagePanel.swift */,
@@ -4447,7 +4444,6 @@
 				0D0C4B0000000000000000A8 /* PinImageManager.swift in Sources */,
 				0D0C4B0000000000000000A9 /* PinImagePanel.swift in Sources */,
 				0D0C4B0000000000000000AA /* PinImageView.swift in Sources */,
-				0D0C4B0000000000000000AB /* ColorPickerPanel.swift in Sources */,
 				0D0C4B0000000000000000AC /* AnnotationModel.swift in Sources */,
 				0D0C4B0000000000000000AD /* AnnotationComposer.swift in Sources */,
 				0D0C4B0000000000000000AE /* MosaicRegionRenderer.swift in Sources */,

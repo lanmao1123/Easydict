@@ -47,7 +47,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)showMiniFloatingWindow;
 - (void)snipTranslate;
 - (void)silentScreenshotOCR;
-- (void)screenshotOCR;
 
 /// YES while a silent screenshot OCR is awaiting its result; makes the OCR
 /// completion copy the text even when the auto-copy setting is off, because

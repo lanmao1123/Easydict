@@ -60,9 +60,4 @@ final class SnipToolsManager: NSObject {
     func copyImagePath() async {
         PasteboardPathService.saveFromPasteboardAndCopyPath()
     }
-
-    /// Presents the color picker magnifier HUD.
-    func startColorPicker() async {
-        ColorPickerPanel.start()
-    }
 }

@@ -105,15 +105,27 @@ extension ShortcutManager {
             )
 
             /*
-             Carbon hotkeys are dead while any menu is tracking (the press
-             looks swallowed), so also enroll the key in the menu-safe
-             channel. The screenshot action gets its menu-content frame
-             captured before the channel dismisses the popup.
+             Carbon hotkeys are dead while any menu is tracking. Only the
+             capture action needs that menu-open escape hatch (shooting the
+             menu itself); polling key-state and the global tap also pick up
+             synthetic events and bounces, which made F2 pop the clipboard
+             panel by itself — so every other function-key action sticks to
+             plain Carbon hotkeys.
              */
+            guard action == .snipToolsEditScreen else {
+                FunctionKeyHotKeyCenter.register(
+                    identifier: action.rawValue,
+                    keyCode: keyCode
+                ) {
+                    action.executeAction()
+                }
+                logInfo("binding function-key hotkey, carbon-only, action=\(action.rawValue), keyCode=\(keyCode)")
+                return
+            }
             MenuSafeHotKeyChannel.shared.enroll(
                 identifier: action.rawValue,
                 keyCode: keyCode,
-                capturesFrozenFrame: action == .snipToolsEditScreen
+                capturesFrozenFrame: true
             ) { presets in
                 if action == .snipToolsEditScreen {
                     Task { @MainActor in

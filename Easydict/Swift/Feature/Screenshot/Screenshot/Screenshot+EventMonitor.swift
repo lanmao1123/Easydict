@@ -24,7 +24,13 @@ extension Screenshot {
                 return handleKeyDown(event)
 
             case .rightMouseDown:
-                // Handle right mouse click
+                // Right click cancels only while still selecting; during
+                // annotation editing an accidental right click must not wipe
+                // the whole session (Snipaste semantics).
+                if activeAnnotationEditor != nil {
+                    logInfo("right click ignored while annotating")
+                    return nil
+                }
                 logInfo("right click detected, canceling screenshot")
                 finishCapture(nil)
 

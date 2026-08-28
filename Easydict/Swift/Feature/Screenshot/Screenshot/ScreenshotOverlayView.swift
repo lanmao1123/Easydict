@@ -59,7 +59,9 @@ struct ScreenshotOverlayView: View {
 
     // MARK: View Components
 
-    /// Background screenshot with dark overlay
+    /// Background screenshot with dimming: a full veil marks capture mode,
+    /// and once a selection exists it punches a bright hole over the selection
+    /// (Snipping Tool style).
     private var backgroundLayer: some View {
         Group {
             if let image = backgroundImage {
@@ -67,9 +69,22 @@ struct ScreenshotOverlayView: View {
                     .resizable()
                     .aspectRatio(contentMode: .fit)
 
-                Rectangle()
-                    .fill(Color.black.opacity(state.shouldHideDarkOverlay ? 0 : 0.3))
-                    .animation(.easeInOut, value: state.shouldHideDarkOverlay)
+                if state.shouldHideDarkOverlay {
+                    Rectangle()
+                        .fill(Color.black.opacity(0))
+                        .animation(.easeInOut, value: state.shouldHideDarkOverlay)
+                } else if !state.selectedRect.isEmpty {
+                    GeometryReader { geometry in
+                        Path { path in
+                            path.addRect(CGRect(origin: .zero, size: geometry.size))
+                            path.addRect(state.selectedRect)
+                        }
+                        .fill(Color.black.opacity(0.3), style: FillStyle(eoFill: true))
+                    }
+                } else {
+                    Rectangle()
+                        .fill(Color.black.opacity(0.3))
+                }
             }
         }
     }
@@ -107,18 +122,18 @@ struct ScreenshotOverlayView: View {
         GeometryReader { geometry in
             Group {
                 if let pos = state.cursorPosition {
-                    let halfArm = 11.0
+                    let halfArm = 16.0
                     let displayX = min(max(pos.x, halfArm), geometry.size.width - halfArm)
                     let displayY = min(max(pos.y, halfArm), geometry.size.height - halfArm)
 
                     CrosshairShape()
-                        .stroke(Color.black.opacity(0.85), lineWidth: 3)
-                        .frame(width: 22, height: 22)
+                        .stroke(Color.black.opacity(0.85), lineWidth: 4)
+                        .frame(width: 32, height: 32)
                         .position(x: displayX, y: displayY)
 
                     CrosshairShape()
-                        .stroke(Color.white, lineWidth: 1.5)
-                        .frame(width: 22, height: 22)
+                        .stroke(Color.white, lineWidth: 2)
+                        .frame(width: 32, height: 32)
                         .position(x: displayX, y: displayY)
                 }
             }

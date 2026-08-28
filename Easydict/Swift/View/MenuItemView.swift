@@ -31,16 +31,6 @@ struct MenuItemView: View {
 
             Divider()
 
-            snipToolsEditItem.keyboardShortcut(.snipToolsEditScreen)
-            pinToScreenItem.keyboardShortcut(.pinToScreen)
-            copyImagePathItem.keyboardShortcut(.copyImagePath)
-            colorPickerItem.keyboardShortcut(.colorPicker)
-            clipboardHistoryItem.keyboardShortcut(.clipboardHistory)
-            closeAllPinsItem
-
-            screenshotOCRItem
-            pasteboardOCRItem
-            showOCRWindowItem
             silentScreenshotOCRItem
 
             Divider()
@@ -81,51 +71,6 @@ struct MenuItemView: View {
 
     @ViewBuilder private var screenshotDockTranslateItem: some View {
         menuItem(for: .screenshotDockTranslate)
-    }
-
-    @ViewBuilder private var snipToolsEditItem: some View {
-        menuItem(for: .snipToolsEditScreen)
-    }
-
-    @ViewBuilder private var pinToScreenItem: some View {
-        menuItem(for: .pinToScreen)
-    }
-
-    @ViewBuilder private var copyImagePathItem: some View {
-        menuItem(for: .copyImagePath)
-    }
-
-    @ViewBuilder private var colorPickerItem: some View {
-        menuItem(for: .colorPicker)
-    }
-
-    @ViewBuilder private var clipboardHistoryItem: some View {
-        menuItem(for: .clipboardHistory)
-    }
-
-    /// Only reachable when pins exist; closes every pinned image at once.
-    @ViewBuilder private var closeAllPinsItem: some View {
-        Button {
-            logInfo("Menu Action: menu_close_all_pins")
-            PinImageManager.shared.closeAll()
-        } label: {
-            HStack {
-                Image(systemSymbol: .pinSlash)
-                Text(LocalizedStringKey("menu_close_all_pins"))
-            }
-        }
-    }
-
-    @ViewBuilder private var screenshotOCRItem: some View {
-        menuItem(for: .screenshotOCR)
-    }
-
-    @ViewBuilder private var pasteboardOCRItem: some View {
-        menuItem(for: .pasteboardOCR)
-    }
-
-    @ViewBuilder private var showOCRWindowItem: some View {
-        menuItem(for: .showOCRWindow)
     }
 
     @ViewBuilder private var silentScreenshotOCRItem: some View {

@@ -224,6 +224,13 @@ class Screenshot: NSObject {
         return screen.takeScreenshot(rect: rect)
     }
 
+    /// Restores the real pointer during annotation editing: the crosshair
+    /// overlay no longer draws there, and hide() alone left customized-pointer
+    /// users with no visible cursor for toolbar clicks.
+    func restorePointerForEditing() {
+        popCrosshairCursor()
+    }
+
     // MARK: Private
 
     /// The completion handler passed from startCapture.

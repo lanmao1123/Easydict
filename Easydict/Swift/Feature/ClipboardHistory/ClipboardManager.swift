@@ -38,9 +38,10 @@ final class ClipboardManager: NSObject {
 
         if panel?.isVisible == true {
             hidePanel()
-        } else {
-            showPanel()
+            return
         }
+
+        showPanel()
     }
 
     func showPanel() {
@@ -52,12 +53,14 @@ final class ClipboardManager: NSObject {
         }
 
         previousApp = NSWorkspace.shared.frontmostApplication
+        observeDeactivation()
         panel?.present()
         NSApp.activate(ignoringOtherApps: true)
         logInfo("panel shown, visible=\(panel?.isVisible == true), frame=\(NSStringFromRect(panel?.frame ?? .zero))")
     }
 
     func hidePanel() {
+        removeDeactivationObserver()
         if panel?.isVisible == true {
             logInfo("panel hidden")
         }
@@ -101,6 +104,31 @@ final class ClipboardManager: NSObject {
     private var panel: ClipboardPanel?
 
     private weak var previousApp: NSRunningApplication?
+
+    /// Hides the panel when Easydict loses focus — the "states stay in sync"
+    /// contract: collapsing Raycast (or clicking anywhere else) collapses the
+    /// clipboard panel with it. NSPanel.hidesOnDeactivate proved unreliable
+    /// for this nonactivating panel, so the resignation is observed directly.
+    private var deactivateObserver: (any NSObjectProtocol)?
+
+    /// Last deliberate show, used to turn a quick re-trigger into a close.
+    private func observeDeactivation() {
+        guard deactivateObserver == nil else { return }
+        deactivateObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            guard let self, panel?.isVisible == true else { return }
+            logInfo("app resigned active, syncing panel closed")
+            hidePanel()
+        }
+    }
+
+    private func removeDeactivationObserver() {
+        if let deactivateObserver {
+            NotificationCenter.default.removeObserver(deactivateObserver)
+            self.deactivateObserver = nil
+        }
+    }
 
     private func writeBack(_ entry: ClipboardEntry) {
         let pasteboard = NSPasteboard.general

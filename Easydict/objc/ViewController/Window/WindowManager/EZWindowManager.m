@@ -888,23 +888,6 @@ static EZWindowManager *_instance;
     }];
 }
 
-- (void)screenshotOCR {
-    MMLogInfo(@"Screenshot OCR");
-
-    [self captureWithRestorePreviousApp:YES completion:^(NSImage *_Nullable image) {
-        if (!image) {
-            MMLogWarn(@"Screenshot OCR skipped: captured image is nil");
-            return;
-        }
-        AppleOCREngine *appleOCREngine = [AppleOCREngine new];
-        [appleOCREngine showOCRWindowWithImage:image language:EZLanguageAuto completionHandler:^(NSError *error) {
-            if (error) {
-                MMLogError(@"OCR Preview failed: %@", error.localizedDescription);
-            }
-        }];
-    }];
-}
-
 /// Translate text from pasteboard, support both image and text.
 - (void)pasteboardTranslate:(EZWindowType)windowType {
     MMLogInfo(@"Pasteboard Translate with windowType: %@", @(windowType));

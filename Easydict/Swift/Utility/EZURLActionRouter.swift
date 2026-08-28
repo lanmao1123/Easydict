@@ -14,7 +14,7 @@ import Foundation
  launchers (Raycast Quicklinks, Alfred, scripts) can trigger them without
  touching Carbon hotkeys. Actions mirror the menu items one-to-one.
 
- Recognized: snip, dock-translate, clipboard-history, ocr, pin, color-picker.
+ Recognized: snip, dock-translate, clipboard-history, ocr, pin.
  */
 @objcMembers
 final class EZURLActionRouter: NSObject {
@@ -40,7 +40,7 @@ final class EZURLActionRouter: NSObject {
     // MARK: Private
 
     private static let actions: Set<String> = [
-        "snip", "dock-translate", "clipboard-history", "ocr", "pin", "color-picker",
+        "snip", "dock-translate", "clipboard-history", "ocr", "pin",
     ]
 
     @MainActor
@@ -56,13 +56,12 @@ final class EZURLActionRouter: NSObject {
             ClipboardManager.shared.togglePanel()
 
         case "ocr":
-            EZWindowManager.shared().screenshotOCR()
+            // Silent OCR: recognize in the background and copy the text
+            // per the auto-copy setting, without any result window.
+            EZWindowManager.shared().silentScreenshotOCR()
 
         case "pin":
             Task { await SnipToolsManager.shared.pinToScreen() }
-
-        case "color-picker":
-            Task { await SnipToolsManager.shared.startColorPicker() }
 
         default:
             break

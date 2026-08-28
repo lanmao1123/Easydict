@@ -40,7 +40,9 @@ class ScreenshotState: ObservableObject {
     var frozenDisplayImage: NSImage?
 
     /// Controls whether the dark overlay is shown during screenshot selection for this specific screen state. Defaults to false.
-    var enableDarkOverlay = false
+    /// The dimming overlay is the primary "capture started" cue; without
+    /// it the screen looks unchanged and customized-pointer users see nothing.
+    var enableDarkOverlay = true
 
     // MARK: - Published Properties
 
@@ -92,6 +94,9 @@ class ScreenshotState: ObservableObject {
     func beginEditing(inRect rect: CGRect) {
         logInfo("editing begins, screen=\(screen.localizedName), rect=\(rect)")
         cleanup()
+        // Editing needs precise clicks on the toolbar; give users their real
+        // pointer back (hide() made it invisible for the selection phase).
+        Screenshot.shared.restorePointerForEditing()
         shouldHideDarkOverlay = true
         isShowingPreview = false
         isTipVisible = false
@@ -129,9 +134,9 @@ class ScreenshotState: ObservableObject {
             return
         }
 
-        // Otherwise, hide based on interaction state (previewing or mouse moved onto the screen).
-        shouldHideDarkOverlay =
-            isShowingPreview || isMouseMoved && screen.isSameScreen(NSScreen.currentMouseScreen())
+        // Keep the dim visible for the whole selection phase (Snipping Tool
+        // style): it is the clear visual signal that capture mode is active.
+        shouldHideDarkOverlay = isShowingPreview
     }
 
     /// Show preview rect, update state

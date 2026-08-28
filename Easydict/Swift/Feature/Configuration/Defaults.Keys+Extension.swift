@@ -390,7 +390,6 @@ extension Defaults.Keys {
 /// shortcut
 extension Defaults.Keys {
     // Global
-    static let screenshotOCRShortcut = Key<KeyCombo?>("EZScreenshotOCRShortcutKey2_keyHolder")
     // Built-in default (⌥X) keeps the kept feature working on fresh installs
     // and self-heals environments whose one-shot migration marker outlived
     // the stored key.
@@ -410,13 +409,6 @@ extension Defaults.Keys {
         "EZCopyImagePathShortcutKey_keyHolder",
         default: KeyCombo(key: .f4, cocoaModifiers: [])
     )
-    /// ⌥P, not ⌥C: the user's saved screenshot-OCR shortcut owns ⌥C, and two
-    /// actions registering the same combo is exactly the "hotkeys act up"
-    /// bug. Inline default keeps fresh installs and lost-key environments covered.
-    static let colorPickerShortcut = Key<KeyCombo?>(
-        "EZColorPickerShortcutKey_keyHolder",
-        default: KeyCombo(key: .p, cocoaModifiers: .option)
-    )
 
     /// Carries the F2 default inline so every launch self-heals; the retired
     /// one-shot migration flag could persist while the key itself went missing.
@@ -424,8 +416,6 @@ extension Defaults.Keys {
         "EZClipboardHistoryShortcutKey_keyHolder",
         default: KeyCombo(key: .f2, cocoaModifiers: [])
     )
-    static let pasteboardOCRShortcut = Key<KeyCombo?>("EZPasteboardOCRShortcutKey_keyHolder")
-    static let showOCRWindowShortcut = Key<KeyCombo?>("EZShowOCRWindowShortcutKey_keyHolder")
     /// Restored silent screenshot OCR; the ⌥⇧S default rides inline so fresh
     /// installs and half-migrated environments both get it on launch.
     static let silentScreenshotOCRShortcut = Key<KeyCombo?>(
