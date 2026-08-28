@@ -210,11 +210,21 @@ final class ScreenshotDockManager: NSObject {
 
     /// First enabled text-translation service, following the user configured order.
     private func pickTranslationService() -> QueryService? {
-        LocalStorage.shared().enabledServices(.main).first { service in
+        let candidates = LocalStorage.shared().enabledServices(.main)
+        logInfo(
+            "dock service picking, candidates=\(candidates.map { "\($0.serviceType().rawValue)(enabled=\($0.enabledQuery),auto=\($0.enabledAutoQuery),types=\($0.supportedQueryType().rawValue))" })"
+        )
+        let picked = candidates.first { service in
             service.enabledQuery
                 && service.enabledAutoQuery
                 && service.supportedQueryType().contains(.translation)
         }
+        if let picked {
+            logInfo("dock service picked, service=\(picked.serviceType().rawValue)")
+        } else {
+            logWarn("dock service picking found none")
+        }
+        return picked
     }
 
     // MARK: Panel Lifecycle

@@ -455,7 +455,13 @@ final class LocalStorage: NSObject {
     private func updateServiceInfo(_ service: QueryService, windowType: EZWindowType) {
         let info = serviceInfo(withType: service.serviceType(), serviceId: service.uuid, windowType: windowType)
         service.enabled = info?.enabled ?? true
-        service.enabledQuery = info?.enabledQuery ?? true
+        /*
+         An enabled service must participate in queries. enabledQuery=false in
+         storage can only come from legacy serialization (fresh service
+         instances defaulted it to false and got written back when the enable
+         toggle flipped); no UI ever exposes it directly.
+         */
+        service.enabledQuery = service.enabled ? true : info?.enabledQuery ?? true
         service.windowType = windowType
         service.uuid = info?.uuid ?? service.uuid
     }

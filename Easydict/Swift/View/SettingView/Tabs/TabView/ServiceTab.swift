@@ -185,6 +185,13 @@ class ServiceTabViewModel: ObservableObject {
 
     // MARK: Private
 
+    /// The dock translate panel takes its translation from the first enabled
+    /// service of the main-window list, so that list stays the single source
+    /// of truth. Only the key-free built-in AI service and the local
+    /// Claude Code CLI service survive — dropped services must never survive
+    /// a settings visit.
+    private static let allowedServiceTypes: [ServiceType] = [.builtInAI, .claudeCode]
+
     private var selectedItem: ServiceTabSelection?
 
     private var selectedServiceItems: [ServiceListItem] {
@@ -193,32 +200,25 @@ class ServiceTabViewModel: ObservableObject {
         }
     }
 
-    /// The dock translate panel takes its translation from the first enabled
-    /// service of the main-window list, so that list stays the single source
-    /// of truth. Everything except the key-free built-in AI service is
-    /// stripped — dropped services must never survive a settings visit.
     private static func sanitizeServiceTypes() {
         let current = LocalStorage.shared().allServiceTypes(.main)
-        let kept = current.filter { typeId in
+        var kept = current.filter { typeId in
             guard let metadata = QueryServiceFactory.shared.metadata(withTypeId: typeId) else {
                 return false
             }
-            return metadata.serviceType == .builtInAI
+            return allowedServiceTypes.contains(metadata.serviceType)
         }
-        if kept.isEmpty {
-            LocalStorage.shared().setAllServiceTypes(
-                [ServiceType.builtInAI.rawValue], windowType: .main
-            )
-        } else if kept.count != current.count {
+        // Re-append a survivor that an earlier slim-down stripped, so the
+        // Claude Code entry comes back without touching the user's ordering.
+        for serviceType in allowedServiceTypes where !kept.contains(serviceType.rawValue) {
+            kept.append(serviceType.rawValue)
+        }
+        if kept.count != current.count {
             LocalStorage.shared().setAllServiceTypes(kept, windowType: .main)
         }
-        if kept.contains(ServiceType.builtInAI.rawValue) || kept.isEmpty {
-            // The dock translate panel reads the first enabled service; make
-            // sure the survivor is actually on.
-            LocalStorage.shared().setServiceEnabled(
-                true, serviceTypeId: ServiceType.builtInAI.rawValue, windowType: .main
-            )
-        }
+        // Service on/off switches belong to the user: forcing the built-in AI
+        // back on here would override an explicit shutdown every settings
+        // visit, so it was removed.
     }
 
     private static func loadServiceItems() -> [ServiceListItem] {
@@ -239,7 +239,7 @@ class ServiceTabViewModel: ObservableObject {
         -> [ServiceListItem] {
         serviceTypeIds.compactMap { typeId in
             guard let metadata = QueryServiceFactory.shared.metadata(withTypeId: typeId),
-                  metadata.serviceType == .builtInAI
+                  allowedServiceTypes.contains(metadata.serviceType)
             else {
                 return nil
             }

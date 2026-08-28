@@ -430,7 +430,8 @@ private struct ClipboardPreviewPane: View {
 
     private static let absoluteTime: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.dateFormat = "MM-dd HH:mm:ss"
+        // Minute precision: seconds add noise without value in a history list.
+        formatter.dateFormat = "MM-dd HH:mm"
         return formatter
     }()
 

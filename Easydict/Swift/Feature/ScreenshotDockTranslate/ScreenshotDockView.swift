@@ -59,11 +59,20 @@ struct ScreenshotDockView: View {
                 case .recognizing:
                     LoadingRow(textKey: "screenshot_dock_recognizing")
                 case .failed, .result, .translating:
+                    // Each block mirrors one source bullet (the checkmarks in
+                    // the screenshot), so the translation reads "one segment
+                    // per original item" instead of a wall of text.
                     ForEach(Array(state.translatedBlocks.enumerated()), id: \.offset) { _, block in
-                        Text(block)
-                            .font(.system(size: 14))
-                            .textSelection(.enabled)
-                            .fixedSize(horizontal: false, vertical: true)
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "checkmark.circle")
+                                .font(.system(size: 13))
+                                .foregroundStyle(.green)
+                                .padding(.top, 2)
+                            Text(block)
+                                .font(.system(size: 14))
+                                .textSelection(.enabled)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                     if state.pendingCount > 0 {
                         LoadingRow(textKey: "screenshot_dock_translating")
