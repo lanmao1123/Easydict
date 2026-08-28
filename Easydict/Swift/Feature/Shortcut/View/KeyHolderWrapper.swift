@@ -95,9 +95,6 @@ extension KeyHolderWrapper {
                     HotKeyCenter.shared.unregisterHotKey(with: action.rawValue)
                     return
                 }
-            } else {
-                // clear shortcut
-                ShortcutManager.shared.updateMenu(action)
             }
             storeKeyCombo(with: keyCombo)
             ShortcutManager.shared.bindingGlobalShortcutAction(keyCombo: keyCombo, action: action)
@@ -130,21 +127,6 @@ extension KeyHolderWrapper {
                 .copyImagePath: DefaultsKeyWrapper(.copyImagePathShortcut),
                 .clipboardHistory: DefaultsKeyWrapper(.clipboardHistoryShortcut),
                 .silentScreenshotOCR: DefaultsKeyWrapper(.silentScreenshotOCRShortcut),
-                .clearInput: DefaultsKeyWrapper(.clearInputShortcut),
-                .clearAll: DefaultsKeyWrapper(.clearAllShortcut),
-                .copy: DefaultsKeyWrapper(.copyShortcut),
-                .copyFirstResult: DefaultsKeyWrapper(.copyFirstResultShortcut),
-                .focus: DefaultsKeyWrapper(.focusShortcut),
-                .play: DefaultsKeyWrapper(.playShortcut),
-                .retry: DefaultsKeyWrapper(.retryShortcut),
-                .toggle: DefaultsKeyWrapper(.toggleShortcut),
-                .pin: DefaultsKeyWrapper(.pinShortcut),
-                .hide: DefaultsKeyWrapper(.hideShortcut),
-                .increaseFontSize: DefaultsKeyWrapper(.increaseFontSize),
-                .decreaseFontSize: DefaultsKeyWrapper(.decreaseFontSize),
-                .google: DefaultsKeyWrapper(.googleShortcut),
-                .eudic: DefaultsKeyWrapper(.eudicShortcut),
-                .appleDic: DefaultsKeyWrapper(.appleDictionaryShortcut),
             ]
         }
 

@@ -13,7 +13,7 @@ import SFSafeSymbols
 
 // MARK: - ShortcutAction
 
-/// Enum representing different application actions that can be triggered by shortcuts
+/// Enum representing the global shortcut actions of the app
 public enum ShortcutAction: String, Identifiable, CaseIterable {
     // Global shortcuts (kept: dock translate, SnipTools, clipboard history, OCR)
     case screenshotDockTranslate
@@ -28,23 +28,6 @@ public enum ShortcutAction: String, Identifiable, CaseIterable {
 
     // OCR specific shortcuts (silent-only per product decision)
     case silentScreenshotOCR
-
-    // In App shortcuts
-    case clearInput
-    case clearAll
-    case copy
-    case copyFirstResult
-    case focus
-    case play
-    case retry
-    case toggle
-    case pin
-    case hide
-    case increaseFontSize
-    case decreaseFontSize
-    case google
-    case eudic
-    case appleDic
 
     // MARK: Public
 
@@ -62,15 +45,9 @@ extension ShortcutAction {
         .silentScreenshotOCR,
     ]
 
-    /// All app-specific shortcut actions (only active when app is focused)
-    static var appActions: [ShortcutAction] {
-        allCases.filter { !globalActions.contains($0) }
-    }
-
-    /// Whether this action is a global shortcut (system-wide hotkey)
-    var isGlobal: Bool {
-        Self.globalActions.contains(self)
-    }
+    /// Every remaining action registers as a system-wide hotkey; the
+    /// in-app-only shortcut tier was removed with the translation windows.
+    var isGlobal: Bool { true }
 
     /// Get configuration for the shortcut type
     var configuration: ActionConfiguration {
@@ -150,115 +127,6 @@ extension ShortcutAction {
                 icon: .cameraMeteringSpot,
                 defaultsKey: .silentScreenshotOCRShortcut,
                 action: { windowManager.silentScreenshotOCR() }
-            ),
-
-            // In App shortcuts
-            .clearInput: .init(
-                titleKey: "shortcut_clear_input",
-                icon: .deleteBackward,
-                defaultsKey: .clearInputShortcut,
-                action: { windowManager.clearInput() }
-            ),
-            .clearAll: .init(
-                titleKey: "shortcut_clear_all",
-                icon: .clearFill,
-                defaultsKey: .clearAllShortcut,
-                action: { windowManager.clearAll() }
-            ),
-            .copy: .init(
-                titleKey: "shortcut_copy",
-                icon: .docOnDoc,
-                defaultsKey: .copyShortcut,
-                action: { windowManager.copyQueryText() }
-            ),
-            .copyFirstResult: .init(
-                titleKey: "shortcut_copy_first_translated_text",
-                icon: .docOnClipboard,
-                defaultsKey: .copyFirstResultShortcut,
-                action: { windowManager.copyFirstTranslatedText() }
-            ),
-            .focus: .init(
-                titleKey: "shortcut_focus",
-                icon: .cursorarrowRays,
-                defaultsKey: .focusShortcut,
-                action: { windowManager.focusInputTextView() }
-            ),
-            .play: .init(
-                titleKey: "shortcut_play",
-                icon: .playFill,
-                defaultsKey: .playShortcut,
-                action: { windowManager.playOrStopQueryTextAudio() }
-            ),
-            .retry: .init(
-                titleKey: "retry",
-                icon: .arrowClockwise,
-                defaultsKey: .retryShortcut,
-                action: { windowManager.rerty() }
-            ),
-            .toggle: .init(
-                titleKey: "toggle_languages",
-                icon: .arrowLeftArrowRight,
-                defaultsKey: .toggleShortcut,
-                action: { windowManager.toggleTranslationLanguages() }
-            ),
-            .pin: .init(
-                titleKey: "pin",
-                icon: .pin,
-                defaultsKey: .pinShortcut,
-                action: { windowManager.pin() }
-            ),
-            .hide: .init(
-                titleKey: "hide",
-                icon: .eyeSlash,
-                defaultsKey: .hideShortcut,
-                action: { windowManager.closeWindowOrExitSreenshot() }
-            ),
-            .increaseFontSize: .init(
-                titleKey: "shortcut_increase_font",
-                icon: .textformatAlt,
-                defaultsKey: .increaseFontSize,
-                action: {
-                    if MyConfiguration.shared.fontSizeIndex < MyConfiguration.shared.fontSizes.count - 1 {
-                        MyConfiguration.shared.fontSizeIndex += 1
-                    }
-                }
-            ),
-            .decreaseFontSize: .init(
-                titleKey: "shortcut_decrease_font",
-                icon: .textformatAlt,
-                defaultsKey: .decreaseFontSize,
-                action: {
-                    if MyConfiguration.shared.fontSizeIndex > 0 {
-                        MyConfiguration.shared.fontSizeIndex -= 1
-                    }
-                }
-            ),
-            .google: .init(
-                titleKey: "open_in_google",
-                icon: .magnifyingglass,
-                defaultsKey: .googleShortcut,
-                action: {
-                    let window = windowManager.floatingWindow
-                    window?.titleBar.googleButton.openLink()
-                }
-            ),
-            .eudic: .init(
-                titleKey: "open_in_eudic",
-                icon: .bookClosed,
-                defaultsKey: .eudicShortcut,
-                action: {
-                    let window = windowManager.floatingWindow
-                    window?.titleBar.eudicButton.openLink()
-                }
-            ),
-            .appleDic: .init(
-                titleKey: "open_in_apple_dictionary",
-                icon: .book,
-                defaultsKey: .appleDictionaryShortcut,
-                action: {
-                    let window = windowManager.floatingWindow
-                    window?.titleBar.appleDictionaryButton.openLink()
-                }
             ),
         ]
     }()

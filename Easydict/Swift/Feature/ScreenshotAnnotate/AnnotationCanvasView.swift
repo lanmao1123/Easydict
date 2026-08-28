@@ -45,7 +45,10 @@ final class AnnotationEditorState: ObservableObject {
 
     @Published var selectedTool: AnnotationTool = .rectangle
     @Published var colorIndex = 0
-    @Published var widthIndex = 1
+
+    /// Starts at the thinnest stroke: heavy defaults read as scribbles on
+    /// small captures, and one click cycles up when a bolder line is wanted.
+    @Published var widthIndex = 0
 
     /// Text tool font size, picked on the input card (S/M/L).
     @Published var textFontSizeIndex = 1

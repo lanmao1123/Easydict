@@ -9,9 +9,12 @@
 import AppKit
 import SwiftUI
 
-/// Floating toolbar of the screenshot editor: tools, color and width pickers,
-/// undo/redo, and the confirm / save-with-path / cancel exits. Docked under
-/// the selection (or above it when the space below is too tight).
+/// Floating toolbar of the screenshot editor: tools, a color picker popup,
+/// a width picker, undo/redo, and the confirm / save-with-path / cancel
+/// exits. Docked under the selection (or above it when the space below is
+/// too tight). Sized after Microsoft's Snipping Tool bar: small 24pt hit
+/// targets and a collapsed color swatch keep the bar compact even when the
+/// selection is tiny.
 struct EditToolbarView: View {
     // MARK: Lifecycle
 
@@ -30,10 +33,10 @@ struct EditToolbarView: View {
     let containerSize: CGSize
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 6) {
             toolGroup
             separator
-            paletteGroup
+            paletteButton
             separator
             widthButton
             separator
@@ -41,20 +44,22 @@ struct EditToolbarView: View {
             separator
             exitGroup
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 9)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
         .background(capsuleBackground)
         .foregroundStyle(.white)
         .background(toolbarGeometryReader)
+        .overlay(alignment: .top) { palettePopup }
         .position(clampedPosition)
     }
 
     // MARK: Private
 
     private static let edgeMargin: CGFloat = 8
-    private static let dockGap: CGFloat = 10
+    private static let dockGap: CGFloat = 8
 
-    @State private var measuredSize: CGSize = .init(width: 560, height: 46)
+    @State private var measuredSize: CGSize = .init(width: 430, height: 34)
+    @State private var showPalette = false
 
     // MARK: Placement
 
@@ -83,9 +88,14 @@ struct EditToolbarView: View {
         }
     }
 
+    private var currentColor: Color {
+        let c = AnnotationEditorState.palette[editor.colorIndex % AnnotationEditorState.palette.count]
+        return Color(red: c.red, green: c.green, blue: c.blue)
+    }
+
     private var separator: some View {
         Divider()
-            .frame(height: 18)
+            .frame(height: 12)
             .overlay(Color.white.opacity(0.35))
     }
 
@@ -106,41 +116,83 @@ struct EditToolbarView: View {
         }
     }
 
+    // MARK: Color picker
+
+    /// Collapsed swatch showing the active color; opens a compact popup with
+    /// the full palette (Microsoft Snipping Tool style) instead of spreading
+    /// every swatch across the bar.
+    private var paletteButton: some View {
+        Button {
+            showPalette.toggle()
+        } label: {
+            ZStack {
+                Capsule()
+                    .fill(Color.white.opacity(showPalette ? 0.25 : 0.15))
+                    .frame(width: 28, height: 24)
+                Circle()
+                    .fill(currentColor)
+                    .frame(width: 12, height: 12)
+                    .overlay(Circle().strokeBorder(Color.white.opacity(0.6), lineWidth: 1))
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(Text("line_color", bundle: .main))
+    }
+
+    /// Swatch popup floating above the bar; picking a color closes it.
+    private var palettePopup: some View {
+        Group {
+            if showPalette {
+                HStack(spacing: 5) {
+                    ForEach(Array(AnnotationEditorState.palette.enumerated()), id: \.offset) { index, color in
+                        Button {
+                            editor.colorIndex = index
+                            showPalette = false
+                        } label: {
+                            Circle()
+                                .fill(Color(red: color.red, green: color.green, blue: color.blue))
+                                .frame(width: 14, height: 14)
+                                .overlay(
+                                    Circle()
+                                        .strokeBorder(
+                                            Color.white.opacity(editor.colorIndex == index ? 1 : 0.35),
+                                            lineWidth: 1.5
+                                        )
+                                )
+                                .frame(width: 22, height: 24)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 7)
+                .padding(.vertical, 5)
+                .background(popupBackground)
+                .offset(y: -40)
+                .transition(.opacity)
+            }
+        }
+    }
+
+    private var popupBackground: some View {
+        Capsule()
+            .fill(Color.black.opacity(0.85))
+            .overlay(Capsule().strokeBorder(Color.white.opacity(0.35), lineWidth: 1))
+            .shadow(color: .black.opacity(0.35), radius: 6, y: 2)
+    }
+
     // MARK: Groups
 
     private var toolGroup: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 2) {
             ForEach(AnnotationTool.allCases.filter { $0 != .eraser }, id: \.rawValue) { tool in
                 toolButton(tool)
             }
             Divider()
-                .frame(height: 16)
+                .frame(height: 12)
                 .overlay(Color.white.opacity(0.3))
             toolButton(.eraser)
-        }
-    }
-
-    private var paletteGroup: some View {
-        HStack(spacing: 6) {
-            ForEach(Array(AnnotationEditorState.palette.enumerated()), id: \.offset) { index, color in
-                Button {
-                    editor.colorIndex = index
-                } label: {
-                    Circle()
-                        .fill(Color(red: color.red, green: color.green, blue: color.blue))
-                        .frame(width: 18, height: 18)
-                        .overlay(
-                            Circle()
-                                .strokeBorder(
-                                    Color.white.opacity(editor.colorIndex == index ? 1 : 0.35),
-                                    lineWidth: 1.5
-                                )
-                        )
-                        .frame(width: 30, height: 32)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
         }
     }
 
@@ -163,14 +215,14 @@ struct EditToolbarView: View {
             ZStack {
                 Capsule()
                     .fill(Color.white.opacity(0.15))
-                    .frame(width: 36, height: 32)
+                    .frame(width: 28, height: 24)
                 Rectangle()
                     .fill(Color.white)
                     .frame(
-                        width: 22,
+                        width: 16,
                         height: min(
                             AnnotationEditorState.widths[editor.widthIndex % AnnotationEditorState.widths.count],
-                            8
+                            7
                         )
                     )
                     .cornerRadius(1.5)
@@ -189,9 +241,9 @@ struct EditToolbarView: View {
             ZStack {
                 Capsule()
                     .fill(Color.white.opacity(0.15))
-                    .frame(width: 36, height: 32)
+                    .frame(width: 28, height: 24)
                 Text(fontSizeBadge)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 11, weight: .semibold))
             }
             .contentShape(Rectangle())
         }
@@ -200,7 +252,7 @@ struct EditToolbarView: View {
     }
 
     private var historyGroup: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 2) {
             historyButton(symbol: "arrow.uturn.backward", enabled: model.canUndo) {
                 model.undo()
             }
@@ -213,7 +265,7 @@ struct EditToolbarView: View {
     /// Confirm composes annotations into the clipboard image; folder saves to
     /// disk and copies the absolute path; cross cancels editing entirely.
     private var exitGroup: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 4) {
             exitButton(symbol: "checkmark", prominent: true) {
                 editor.finishByCopying()
             }
@@ -228,7 +280,7 @@ struct EditToolbarView: View {
         }
     }
 
-    /// 32×32 full-frame hit target so a quick click never misses; the
+    /// 24×24 full-frame hit target so a quick click never misses; the
     /// selected tool's highlight block covers the whole target, making the
     /// active tool obvious at a glance.
     private func toolButton(_ tool: AnnotationTool) -> some View {
@@ -237,9 +289,9 @@ struct EditToolbarView: View {
             editor.selectedTool = tool
         } label: {
             iconView(for: tool)
-                .frame(width: 32, height: 32)
+                .frame(width: 24, height: 24)
                 .background(
-                    RoundedRectangle(cornerRadius: 7)
+                    RoundedRectangle(cornerRadius: 5)
                         .fill(editor.selectedTool == tool ? Color.white.opacity(0.25) : Color.clear)
                 )
                 .contentShape(Rectangle())
@@ -254,7 +306,7 @@ struct EditToolbarView: View {
             // A bare T is the universal "add text" glyph; SF Symbols like
             // textformat read as gibberish at toolbar size.
             Text("T")
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.white)
         } else if let custom = tool.customToolbarImage {
             Image(nsImage: custom)
@@ -262,15 +314,15 @@ struct EditToolbarView: View {
                 .foregroundStyle(.white)
         } else {
             Image(systemName: tool.systemSymbolName)
-                .font(.system(size: 15, weight: .medium))
+                .font(.system(size: 12, weight: .medium))
         }
     }
 
     private func historyButton(symbol: String, enabled: Bool, action: @escaping () -> ()) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 13, weight: .semibold))
-                .frame(width: 32, height: 32)
+                .font(.system(size: 11, weight: .semibold))
+                .frame(width: 24, height: 24)
                 .opacity(enabled ? 1 : 0.35)
                 .contentShape(Rectangle())
         }
@@ -281,11 +333,11 @@ struct EditToolbarView: View {
     private func exitButton(symbol: String, prominent: Bool, action: @escaping () -> ()) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 13, weight: .bold))
+                .font(.system(size: 11, weight: .bold))
                 .foregroundStyle(prominent ? Color.black : Color.white)
-                .frame(width: 32, height: 32)
+                .frame(width: 24, height: 24)
                 .background(
-                    RoundedRectangle(cornerRadius: 7)
+                    RoundedRectangle(cornerRadius: 5)
                         .fill(prominent ? AnyShapeStyle(Color.green) : AnyShapeStyle(Color.white.opacity(0.22)))
                 )
                 .contentShape(Rectangle())

@@ -35,7 +35,9 @@ struct ScreenshotOverlayView: View {
             } else {
                 selectionLayer
 
-                if state.isTipVisible {
+                if state.isAdjustingSelection {
+                    SelectionAdjustBar(screen: state.screen, rect: state.selectedRect)
+                } else if state.isTipVisible {
                     tipLayer
                 }
             }
@@ -45,8 +47,19 @@ struct ScreenshotOverlayView: View {
 
     // MARK: Private
 
+    // MARK: Resize Handles
+
+    private enum SelectionHandle: CaseIterable {
+        case topLeft, top, topRight, leading, trailing, bottomLeft, bottom, bottomRight
+    }
+
     @State private var backgroundImage: NSImage?
     @ObservedObject private var state: ScreenshotState
+
+    /// Drag inside the selection moves the whole rect during adjusting.
+    @State private var moveStartRect: CGRect?
+
+    @State private var resizeStartRect: CGRect?
 
     // MARK: Gestures
 
@@ -55,6 +68,23 @@ struct ScreenshotOverlayView: View {
         DragGesture(minimumDistance: 0, coordinateSpace: .global)
             .onChanged(handleDragChange)
             .onEnded(handleDragEnd)
+    }
+
+    private var moveGesture: some Gesture {
+        DragGesture(minimumDistance: 1, coordinateSpace: .global)
+            .onChanged { value in
+                if moveStartRect == nil { moveStartRect = state.selectedRect }
+                guard let start = moveStartRect else { return }
+                let origin = CGPoint(
+                    x: start.minX + value.translation.width,
+                    y: start.minY + value.translation.height
+                )
+                state.selectedRect = CGRect(origin: origin, size: start.size).integral
+            }
+            .onEnded { _ in
+                moveStartRect = nil
+                logInfo("selection moved to \(state.selectedRect)")
+            }
     }
 
     // MARK: View Components
@@ -96,6 +126,8 @@ struct ScreenshotOverlayView: View {
                 if !state.selectedRect.isEmpty {
                     selectionRectangleView
                 }
+
+                resizeHandles
 
                 crosshairView
             }
@@ -141,7 +173,8 @@ struct ScreenshotOverlayView: View {
         }
     }
 
-    /// Visual representation of the selection area
+    /// Visual representation of the selection area. During the adjusting
+    /// phase it grows resize handles and a move gesture, Snipping Tool style.
     private var selectionRectangleView: some View {
         ZStack {
             // Dark underlay keeps the white border readable on light content.
@@ -157,6 +190,18 @@ struct ScreenshotOverlayView: View {
             x: state.selectedRect.midX,
             y: state.selectedRect.midY
         )
+        .gesture(state.isAdjustingSelection ? moveGesture : nil)
+    }
+
+    /// White square handles on the border during adjusting; dragging one
+    /// resizes the rect from that side or corner.
+    @ViewBuilder
+    private var resizeHandles: some View {
+        if state.isAdjustingSelection, !state.selectedRect.isEmpty {
+            ForEach(SelectionHandle.allCases, id: \.hashValue) { handle in
+                resizeHandleView(handle)
+            }
+        }
     }
 
     /// Snipaste-style editing mask: everything outside the selection stays
@@ -246,6 +291,74 @@ struct ScreenshotOverlayView: View {
         }
     }
 
+    private func resizeHandleView(_ handle: SelectionHandle) -> some View {
+        let anchor = handleAnchor(handle)
+        let isCorner = handle != .top && handle != .bottom && handle != .leading && handle != .trailing
+        return ZStack {
+            Rectangle().fill(Color.clear)
+        }
+        .frame(width: 28, height: 28)
+        .overlay(
+            Rectangle()
+                .fill(Color.white)
+                .frame(width: isCorner ? 12 : 20, height: isCorner ? 12 : 8)
+                .overlay(Rectangle().strokeBorder(Color.black.opacity(0.7), lineWidth: 1.5))
+                .shadow(color: .black.opacity(0.4), radius: 1)
+        )
+        .position(anchor)
+        .contentShape(Rectangle())
+        .gesture(resizeGesture(handle))
+    }
+
+    private func handleAnchor(_ handle: SelectionHandle) -> CGPoint {
+        let r = state.selectedRect
+        switch handle {
+        case .topLeft: return CGPoint(x: r.minX, y: r.minY)
+        case .top: return CGPoint(x: r.midX, y: r.minY)
+        case .topRight: return CGPoint(x: r.maxX, y: r.minY)
+        case .leading: return CGPoint(x: r.minX, y: r.midY)
+        case .trailing: return CGPoint(x: r.maxX, y: r.midY)
+        case .bottomLeft: return CGPoint(x: r.minX, y: r.maxY)
+        case .bottom: return CGPoint(x: r.midX, y: r.maxY)
+        case .bottomRight: return CGPoint(x: r.maxX, y: r.maxY)
+        }
+    }
+
+    private func resizeGesture(_ handle: SelectionHandle) -> some Gesture {
+        DragGesture(minimumDistance: 1, coordinateSpace: .global)
+            .onChanged { value in
+                if resizeStartRect == nil { resizeStartRect = state.selectedRect }
+                guard let start = resizeStartRect else { return }
+
+                var minX = start.minX
+                var minY = start.minY
+                var maxX = start.maxX
+                var maxY = start.maxY
+
+                switch handle {
+                case .topLeft: minX = value.location.x; minY = value.location.y
+                case .top: minY = value.location.y
+                case .topRight: maxX = value.location.x; minY = value.location.y
+                case .leading: minX = value.location.x
+                case .trailing: maxX = value.location.x
+                case .bottomLeft: minX = value.location.x; maxY = value.location.y
+                case .bottom: maxY = value.location.y
+                case .bottomRight: maxX = value.location.x; maxY = value.location.y
+                }
+
+                let rect = CGRect(
+                    x: min(minX, maxX), y: min(minY, maxY),
+                    width: max(abs(maxX - minX), 10),
+                    height: max(abs(maxY - minY), 10)
+                ).integral
+                state.selectedRect = rect
+            }
+            .onEnded { _ in
+                resizeStartRect = nil
+                logInfo("selection resized to \(state.selectedRect)")
+            }
+    }
+
     // MARK: Event Handlers
 
     /// Handle drag gesture change
@@ -288,13 +401,131 @@ struct ScreenshotOverlayView: View {
 
         // Check if selection meets minimum size requirements
         if selectedRect.width > 10, selectedRect.height > 10 {
-            // Call the centralized screenshot method
-            Screenshot.shared.performScreenshot(screen: state.screen, rect: selectedRect)
+            // F1's edit path first enters the resize/move phase; picking any
+            // tool (or ✓/Enter) locks the rect. Plain capture paths keep the
+            // old fire-on-release behavior.
+            if Screenshot.shared.editModeEnabled {
+                if !state.isAdjustingSelection {
+                    state.isAdjustingSelection = true
+                    logInfo("entering selection adjusting mode, rect=\(selectedRect)")
+                } else {
+                    logInfo("re-selected while adjusting, rect=\(selectedRect)")
+                }
+            } else {
+                // Call the centralized screenshot method
+                Screenshot.shared.performScreenshot(screen: state.screen, rect: selectedRect)
+            }
         } else {
             logInfo("selection cancelled, too small (minimum 10x10), rect=\(selectedRect)")
             // Cancel the screenshot process directly
             Screenshot.shared.finishCapture(nil)
         }
+    }
+}
+
+// MARK: - SelectionAdjustBar
+
+/// Toolbar of the adjusting phase, docked under the selection (or above it
+/// when the space below is tight). Picking a tool locks the rect and starts
+/// annotating with that tool; ✓ confirms the crop as-is; ✕ cancels.
+private struct SelectionAdjustBar: View {
+    // MARK: Internal
+
+    let screen: NSScreen
+    let rect: CGRect
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(AnnotationTool.allCases, id: \.rawValue) { tool in
+                toolButton(tool)
+            }
+            Divider()
+                .frame(height: 12)
+                .overlay(Color.white.opacity(0.35))
+            exitButton(symbol: "checkmark", prominent: true) {
+                Screenshot.shared.confirmAdjustedSelection()
+            }
+            exitButton(symbol: "xmark", prominent: false) {
+                Screenshot.shared.finishCapture(nil)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(
+            Capsule()
+                .fill(Color.black.opacity(0.85))
+                .overlay(Capsule().strokeBorder(Color.white.opacity(0.35), lineWidth: 1))
+                .shadow(color: .black.opacity(0.35), radius: 6, y: 2)
+        )
+        .foregroundStyle(.white)
+        .background(
+            GeometryReader { geometry in
+                Color.clear
+                    .onAppear { measuredSize = geometry.size }
+                    .onChange(of: geometry.size) { measuredSize = $0 }
+            }
+        )
+        .position(clampedPosition)
+    }
+
+    // MARK: Private
+
+    @State private var measuredSize: CGSize = .init(width: 340, height: 34)
+
+    private var clampedPosition: CGPoint {
+        let margin: CGFloat = 8
+        let gap: CGFloat = 8
+        let halfW = measuredSize.width / 2
+        let halfH = measuredSize.height / 2
+
+        let x = max(halfW + margin, min(rect.midX, screen.frame.width - halfW - margin))
+        let preferredY = rect.maxY + gap + halfH
+        let maxY = screen.frame.height - halfH - margin
+        let y = min(preferredY <= maxY ? preferredY : max(rect.minY - gap - halfH, halfH + margin), maxY)
+        return CGPoint(x: x, y: y)
+    }
+
+    private func toolButton(_ tool: AnnotationTool) -> some View {
+        Button {
+            Screenshot.shared.lockSelectionAndBeginEditing(tool: tool)
+        } label: {
+            iconView(for: tool)
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(Text(LocalizedStringKey(tool.tooltipKey)))
+    }
+
+    @ViewBuilder
+    private func iconView(for tool: AnnotationTool) -> some View {
+        if tool == .text {
+            Text("T")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white)
+        } else if let custom = tool.customToolbarImage {
+            Image(nsImage: custom)
+                .interpolation(.high)
+                .foregroundStyle(.white)
+        } else {
+            Image(systemName: tool.systemSymbolName)
+                .font(.system(size: 12, weight: .medium))
+        }
+    }
+
+    private func exitButton(symbol: String, prominent: Bool, action: @escaping () -> ()) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(prominent ? Color.black : Color.white)
+                .frame(width: 24, height: 24)
+                .background(
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(prominent ? AnyShapeStyle(Color.green) : AnyShapeStyle(Color.white.opacity(0.22)))
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 

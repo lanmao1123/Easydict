@@ -71,6 +71,12 @@ class ScreenshotState: ObservableObject {
     /// Whether this overlay switched from selecting into annotation editing.
     @Published var isEditing = false
 
+    /// The phase right after the drag ends and before the first annotation
+    /// tool is picked: the selection can be resized from its handles, moved
+    /// by dragging inside, or re-drawn by dragging outside (Snipping Tool
+    /// behavior). Picking any tool locks the rect and starts editing.
+    @Published var isAdjustingSelection = false
+
     /// Selection rect captured when editing began, top-left origin.
     private(set) var editingRect = CGRect.zero
 
@@ -85,6 +91,7 @@ class ScreenshotState: ObservableObject {
         isShowingPreview = false
         shouldHideDarkOverlay = true
         isEditing = false
+        isAdjustingSelection = false
 
         cleanup()
     }
@@ -93,6 +100,7 @@ class ScreenshotState: ObservableObject {
     /// selection gestures stop, the frozen background stays fully visible.
     func beginEditing(inRect rect: CGRect) {
         logInfo("editing begins, screen=\(screen.localizedName), rect=\(rect)")
+        isAdjustingSelection = false
         cleanup()
         // Editing needs precise clicks on the toolbar; give users their real
         // pointer back (hide() made it invisible for the selection phase).

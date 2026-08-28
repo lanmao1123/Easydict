@@ -105,6 +105,11 @@ class Screenshot: NSObject {
         return overlayViewStates[screen]?.annotationEditor
     }
 
+    /// True while any screen's overlay sits in the resize/move phase.
+    var isAdjustingSelection: Bool {
+        overlayViewStates.values.contains { $0.isAdjustingSelection }
+    }
+
     /// The editing rect converted to AppKit global coordinates (bottom-left
     /// origin), so the annotated image can be pinned exactly over the spot
     /// it was captured from.
@@ -201,6 +206,37 @@ class Screenshot: NSObject {
 
     /// Completes annotation editing: hides overlays and fires the completion
     /// handler exactly like a regular capture, with `image` or nil to cancel.
+    /// Ends the adjusting phase: locks the selection where the user left it
+    /// and enters annotation editing with `tool` preselected.
+    func lockSelectionAndBeginEditing(tool: AnnotationTool) {
+        guard editModeEnabled, let screen = lastScreen,
+              let state = overlayViewStates[screen], !state.selectedRect.isEmpty else {
+            logWarn("lockSelection skipped, no adjusting selection")
+            return
+        }
+        let rect = state.selectedRect
+        state.beginEditing(inRect: rect)
+        MainActor.assumeIsolated {
+            state.annotationEditor?.selectedTool = tool
+        }
+        logInfo("selection locked, editing starts, tool=\(tool.rawValue), rect=\(rect)")
+    }
+
+    /// Ends the adjusting phase without annotating: the selection as it
+    /// stands becomes the final image (✓ / Enter / ⌘C).
+    func confirmAdjustedSelection() {
+        guard editModeEnabled, let screen = lastScreen,
+              let state = overlayViewStates[screen], !state.selectedRect.isEmpty else {
+            logWarn("confirmAdjusted skipped, no adjusting selection")
+            return
+        }
+        let rect = state.selectedRect
+        state.isAdjustingSelection = false
+        editModeEnabled = false
+        logInfo("selection confirmed without annotating, rect=\(rect)")
+        performScreenshot(screen: screen, rect: rect)
+    }
+
     func completeEditing(with image: NSImage?) {
         logInfo("completeEditing, image=\(image != nil ? "\(image!.size)" : "nil(cancel)")")
         if let screen = lastScreen {

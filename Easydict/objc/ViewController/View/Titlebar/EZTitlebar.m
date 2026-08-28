@@ -385,16 +385,12 @@ typedef NS_ENUM(NSInteger, EZTitlebarButtonType) {
     NSString *shortcutStr = @"";
     NSString *hint = @"";
     if (type == EZTitlebarButtonTypePin) {
-        shortcutStr = MyConfiguration.shared.pinShortcutString;
         hint = self.pin ? NSLocalizedString(@"unpin", nil) : NSLocalizedString(@"pin", nil);
     } else if (type == EZTitlebarButtonTypeGoogle) {
-        shortcutStr = MyConfiguration.shared.googleShortcutString;
         hint = NSLocalizedString(@"open_in_google", nil);
     } else if (type == EZTitlebarButtonTypeAppleDic) {
-        shortcutStr = MyConfiguration.shared.appleDictShortcutString;
         hint = NSLocalizedString(@"open_in_apple_dictionary", nil);
     } else if (type == EZTitlebarButtonTypeEudicDic) {
-        shortcutStr = MyConfiguration.shared.eudicDictShortcutString;
         hint = NSLocalizedString(@"open_in_eudic", nil);
     }
     if (shortcutStr.length != 0) {

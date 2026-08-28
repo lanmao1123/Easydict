@@ -16,9 +16,8 @@ struct AboutTab: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 30) {
-            Image(.logo)
+            Image(nsImage: NSApp.applicationIconImage)
                 .resizable()
-                .renderingMode(.original)
                 .frame(width: 100, height: 100)
                 .shadow(color: .gray, radius: 1, x: 0, y: 0.8)
                 .padding(.bottom, 2)
@@ -44,26 +43,6 @@ struct AboutTab: View {
 
                 HStack(spacing: 15) {
                     Button {
-                        NSWorkspace.shared.open(
-                            URL(string: "https://github.com/tisfeng/Easydict")!
-                        )
-                    } label: {
-                        Label("setting.about.github_link", systemSymbol: .starFill)
-                    }
-
-                    Button {
-                        NSWorkspace.shared
-                            .open(
-                                URL(
-                                    string:
-                                    "https://github.com/tisfeng/Easydict/graphs/contributors"
-                                )!
-                            )
-                    } label: {
-                        Label("setting.about.contributor_link", systemSymbol: .person3Fill)
-                    }
-
-                    Button {
                         HostWindowManager.shared.showAcknowWindow()
                     } label: {
                         Label("setting.about.acknowledgements", systemSymbol: .checkmarkSealFill)
@@ -80,7 +59,9 @@ struct AboutTab: View {
     @Environment(\.openWindow) private var openWindow
 
     private var appName: String {
-        Bundle.main.infoDictionary?["CFBundleName"] as? String ?? ""
+        Bundle.main.infoDictionary?["CFBundleDisplayName"] as? String
+            ?? Bundle.main.infoDictionary?["CFBundleName"] as? String
+            ?? "yaomao"
     }
 
     private var version: String {
@@ -90,7 +71,7 @@ struct AboutTab: View {
     private var copyrightInfo: String {
         Bundle.main.localizedString(
             forKey: "NSHumanReadableCopyright",
-            value: "Copyright © 2023-2025 tisfeng. All rights reserved.",
+            value: "A personal screenshot toolbox based on Easydict.",
             table: "InfoPlist"
         )
     }

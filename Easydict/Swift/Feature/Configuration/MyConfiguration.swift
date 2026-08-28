@@ -125,11 +125,6 @@ class MyConfiguration: NSObject {
     @DefaultsWrapper(.allowCrashLog) var allowCrashLog: Bool
     @DefaultsWrapper(.allowAnalytics) var allowAnalytics: Bool
 
-    @ShortcutWrapper(.pinShortcut) var pinShortcutString: String
-    @ShortcutWrapper(.googleShortcut) var googleShortcutString: String
-    @ShortcutWrapper(.appleDictionaryShortcut) var appleDictShortcutString: String
-    @ShortcutWrapper(.eudicShortcut) var eudicDictShortcutString: String
-
     let updater = GlobalContext.shared.updaterController.updater
     let fontSizes: [CGFloat] = [1, 1.1, 1.2, 1.3, 1.4]
     var disabledAutoSelect: Bool = false
@@ -382,21 +377,6 @@ class MyConfiguration: NSObject {
                 self?.didSetAppearance(newValue)
             }
             .store(in: &cancellables)
-
-        Defaults.publisher(
-            keys: [
-                .pinShortcut,
-                .appleDictionaryShortcut,
-                .googleShortcut,
-                .eudicShortcut,
-            ],
-            options: []
-        )
-        .throttle(for: 0.5, scheduler: DispatchQueue.main, latest: true)
-        .sink { _ in
-            EZWindowManager.shared().updateWindowsTitlebarButtonsToolTip()
-        }
-        .store(in: &cancellables)
 
         Defaults.publisher(.enableHTTPServer)
             .removeDuplicates()

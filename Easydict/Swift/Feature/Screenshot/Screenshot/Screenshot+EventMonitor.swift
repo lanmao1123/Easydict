@@ -138,6 +138,20 @@ extension Screenshot {
             return event
         }
 
+        // Adjusting phase: Enter / ⌘C confirm the crop as-is; other keys are
+        // consumed silently. ESC above already cancels the whole session.
+        if isAdjustingSelection {
+            let confirmed = MainActor.assumeIsolated { () -> Bool in
+                guard flags.isEmpty || flags == .command else { return false }
+                guard keyCode == kVK_Return || keyCode == kVK_ANSI_C else { return false }
+                logInfo("adjusting phase confirmed by key, keyCode=\(keyCode)")
+                confirmAdjustedSelection()
+                return true
+            }
+            if confirmed { return nil }
+            return nil // Consume, avoid beep sound
+        }
+
         return nil // Consume, avoid beep sound
     }
 

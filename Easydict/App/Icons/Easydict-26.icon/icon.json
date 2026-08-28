@@ -1,8 +1,8 @@
 {
   "fill": {
     "linear-gradient": [
-      "display-p3:0.29804,0.41961,0.95686,1.00000",
-      "srgb:0.59608,0.32157,0.96471,1.00000"
+      "display-p3:0.04314,0.04314,0.05490,1.00000",
+      "srgb:0.00000,0.00000,0.00000,1.00000"
     ]
   },
   "groups": [
@@ -11,37 +11,9 @@
       "hidden": false,
       "layers": [
         {
-          "fill-specializations": [
-            {
-              "value": {
-                "linear-gradient": [
-                  "display-p3:1.00000,1.00000,1.00000,1.00000",
-                  "srgb:1.00000,1.00000,1.00000,1.00000"
-                ]
-              }
-            },
-            {
-              "appearance": "dark",
-              "value": {
-                "linear-gradient": [
-                  "display-p3:1.00000,1.00000,1.00000,1.00000",
-                  "srgb:1.00000,1.00000,1.00000,1.00000"
-                ]
-              }
-            },
-            {
-              "appearance": "tinted",
-              "value": {
-                "linear-gradient": [
-                  "display-p3:1.00000,1.00000,1.00000,1.00000",
-                  "srgb:1.00000,1.00000,1.00000,1.00000"
-                ]
-              }
-            }
-          ],
           "hidden": false,
-          "image-name": "emblem.svg",
-          "name": "snip-emblem",
+          "image-name": "cat-lines.png",
+          "name": "yaomao-running-cat",
           "position": {
             "scale": 1,
             "translation-in-points": [
@@ -56,14 +28,14 @@
         {
           "value": {
             "kind": "layer-color",
-            "opacity": 0.3
+            "opacity": 0.0
           }
         },
         {
           "appearance": "dark",
           "value": {
             "kind": "layer-color",
-            "opacity": 0.2
+            "opacity": 0.0
           }
         },
         {

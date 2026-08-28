@@ -47,9 +47,6 @@ struct MenuItemView: View {
 
             quitItem.keyboardShortcut(.init("q"))
         }
-        .task {
-            latestVersion = await fetchRepoLatestVersion(EZGithubRepoEasydict)
-        }
     }
 
     // MARK: Private
@@ -59,18 +56,8 @@ struct MenuItemView: View {
     @State private var currentVersion =
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
 
-    @State private var latestVersion: String?
-
-    @Environment(\.openURL) private var openURL
-
     private var versionString: String {
-        let defaultLabel = "Easydict  \(currentVersion)"
-        if let latestVersion,
-           currentVersion.compare(latestVersion, options: .numeric) == .orderedAscending {
-            return defaultLabel + "  (✨\(latestVersion) )"
-        } else {
-            return defaultLabel
-        }
+        "yaomao  \(currentVersion)"
     }
 
     @ViewBuilder private var screenshotDockTranslateItem: some View {
@@ -90,14 +77,9 @@ struct MenuItemView: View {
 
     // MARK: - Other Items
 
-    /// Version item
+    /// Version item (plain text; this is a private product now)
     @ViewBuilder private var versionItem: some View {
-        Button(versionString) {
-            guard let versionURL = URL(string: "\(EZGithubRepoEasydictURL)/releases") else {
-                return
-            }
-            openURL(versionURL)
-        }
+        Text(versionString)
     }
 
     /// Settings item
@@ -146,13 +128,6 @@ struct MenuItemView: View {
     /// Help item
     @ViewBuilder private var helpItem: some View {
         Menu("Help") {
-            Button("Feedback") {
-                logInfo("Open Feedback")
-                guard let versionURL = URL(string: "\(EZGithubRepoEasydictURL)/issues") else {
-                    return
-                }
-                openURL(versionURL)
-            }
             Button("Export Log") {
                 exportLogAction()
             }

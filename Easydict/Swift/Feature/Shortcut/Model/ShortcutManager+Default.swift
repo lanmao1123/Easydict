@@ -15,7 +15,6 @@ extension ShortcutManager {
     // Set defalut hotkeys for global and app
     func setDefaultShortcutKeys() {
         setDefaultGlobalShortcutKeys()
-        setDefaultAppShortcutKeys()
     }
 
     private func setDefaultGlobalShortcutKeys() {
@@ -56,24 +55,6 @@ extension ShortcutManager {
             UserDefaults.standard.removeObject(forKey: staleKey)
             logInfo("removed stale hotkey storage, key=\(staleKey)")
         }
-    }
-
-    private func setDefaultAppShortcutKeys() {
-        Defaults[.clearInputShortcut] = KeyCombo(key: .k, cocoaModifiers: .command)
-        Defaults[.clearAllShortcut] = KeyCombo(key: .k, cocoaModifiers: [.command, .shift])
-        Defaults[.copyShortcut] = KeyCombo(key: .c, cocoaModifiers: [.command, .shift])
-        Defaults[.copyFirstResultShortcut] = KeyCombo(key: .j, cocoaModifiers: [.command, .shift])
-        Defaults[.focusShortcut] = KeyCombo(key: .i, cocoaModifiers: .command)
-        Defaults[.playShortcut] = KeyCombo(key: .s, cocoaModifiers: .command)
-        Defaults[.retryShortcut] = KeyCombo(key: .r, cocoaModifiers: .command)
-        Defaults[.toggleShortcut] = KeyCombo(key: .t, cocoaModifiers: .command)
-        Defaults[.pinShortcut] = KeyCombo(key: .p, cocoaModifiers: .command)
-        Defaults[.hideShortcut] = KeyCombo(key: .y, cocoaModifiers: .command)
-        Defaults[.increaseFontSize] = KeyCombo(key: .keypadPlus, cocoaModifiers: .command)
-        Defaults[.decreaseFontSize] = KeyCombo(key: .keypadMinus, cocoaModifiers: .command)
-        Defaults[.googleShortcut] = KeyCombo(key: .return, cocoaModifiers: .command)
-        Defaults[.eudicShortcut] = KeyCombo(key: .return, cocoaModifiers: [.command, .shift])
-        Defaults[.appleDictionaryShortcut] = KeyCombo(key: .d, cocoaModifiers: [.command, .shift])
     }
 }
 

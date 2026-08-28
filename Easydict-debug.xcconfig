@@ -3,3 +3,6 @@ CODE_SIGN_IDENTITY = -
 CODE_SIGN_STYLE = Manual
 
 #include? "Easydict-debug.local.xcconfig"
+
+// User-visible app name (Dock, menu bar, Settings window title)
+DISPLAY_NAME = yaomao-debug

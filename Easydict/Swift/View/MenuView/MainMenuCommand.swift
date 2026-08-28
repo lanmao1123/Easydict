@@ -12,9 +12,6 @@ struct EasydictMainMenu: Commands {
     // MARK: Internal
 
     var body: some Commands {
-        // Shortcuts
-        MainMenuShortcutCommand()
-
         // Override Help
         CommandGroup(replacing: .help) {
             Button("menu_feedback") {

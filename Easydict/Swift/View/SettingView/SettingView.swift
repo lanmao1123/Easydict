@@ -10,13 +10,65 @@ import SwiftUI
 
 // MARK: - SettingTab
 
-enum SettingTab: Int {
+enum SettingTab: Int, Identifiable {
     case general
     case service
     case advanced
     case shortcut
-    case privacy
     case about
+
+    // MARK: Internal
+
+    var id: Self { self }
+
+    var titleKey: LocalizedStringKey {
+        switch self {
+        case .general: "setting_general"
+        case .service: "service"
+        case .shortcut: "shortcut"
+        case .advanced: "advanced"
+        case .about: "setting.about"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .general: "gear"
+        case .service: "briefcase"
+        case .shortcut: "command.square"
+        case .advanced: "gearshape.2"
+        case .about: "info.bubble"
+        }
+    }
+}
+
+// MARK: - SettingSidebarGroup
+
+/// Sidebar sections in the Bob-style settings layout.
+private enum SettingSidebarGroup: String, CaseIterable, Identifiable {
+    case general
+    case features
+    case other
+
+    // MARK: Internal
+
+    var id: String { rawValue }
+
+    var titleKey: LocalizedStringKey {
+        switch self {
+        case .general: "setting.sidebar.general"
+        case .features: "setting.sidebar.features"
+        case .other: "setting.sidebar.other"
+        }
+    }
+
+    var tabs: [SettingTab] {
+        switch self {
+        case .general: [.general]
+        case .features: [.service, .shortcut, .advanced]
+        case .other: [.about]
+        }
+    }
 }
 
 // MARK: - SettingView
@@ -25,30 +77,10 @@ struct SettingView: View {
     // MARK: Internal
 
     var body: some View {
-        TabView(selection: $selection) {
-            GeneralTab()
-                .tabItem { Label("setting_general", systemImage: "gear") }
-                .tag(SettingTab.general)
-
-            ServiceTab()
-                .tabItem { Label("service", systemImage: "briefcase") }
-                .tag(SettingTab.service)
-
-            ShortcutTab()
-                .tabItem { Label("shortcut", systemImage: "command.square") }
-                .tag(SettingTab.shortcut)
-
-            AdvancedTab()
-                .tabItem { Label("advanced", systemImage: "gearshape.2") }
-                .tag(SettingTab.advanced)
-
-            PrivacyTab()
-                .tabItem { Label("privacy", systemImage: "hand.raised.square") }
-                .tag(SettingTab.privacy)
-
-            AboutTab()
-                .tabItem { Label("setting.about", systemImage: "info.bubble") }
-                .tag(SettingTab.about)
+        HStack(spacing: 0) {
+            sidebar
+            Divider()
+            contentArea
         }
         .background(
             WindowAccessor(window: $window.didSet(execute: { _ in
@@ -70,8 +102,6 @@ struct SettingView: View {
         // Keep the settings page Windows all the same width to avoid strange animations.
         let maxWidth: Double = 900
         let height: Double = switch selection {
-        case .privacy:
-            340
         case .about:
             300
         default:
@@ -97,8 +127,78 @@ struct SettingView: View {
 
     // MARK: Private
 
+    private static let sidebarWidth: Double = 176
+
     @State private var selection = SettingTab.general
     @State private var window: NSWindow?
+
+    /// Grouped nav list on the left; the selected row is an accent capsule
+    /// with white text, matching the Bob settings layout.
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            ForEach(SettingSidebarGroup.allCases) { group in
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(group.titleKey)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 10)
+                        .padding(.bottom, 3)
+
+                    ForEach(group.tabs) { tab in
+                        sidebarRow(tab)
+                    }
+                }
+            }
+            Spacer()
+        }
+        .padding(.top, 14)
+        .padding(.horizontal, 10)
+        .padding(.bottom, 12)
+        .frame(width: Self.sidebarWidth, alignment: .leading)
+        .background(Color.gray.opacity(0.08))
+    }
+
+    private var contentArea: some View {
+        Group {
+            switch selection {
+            case .general: GeneralTab()
+            case .service: ServiceTab()
+            case .shortcut: ShortcutTab()
+            case .advanced: AdvancedTab()
+            case .about: AboutTab()
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        // Bob-style inset rounded cards for every Form-based tab.
+        .formStyle(.grouped)
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private func sidebarRow(_ tab: SettingTab) -> some View {
+        let isSelected = selection == tab
+        return Button {
+            selection = tab
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: tab.systemImage)
+                    .font(.system(size: 13))
+                    .frame(width: 16)
+                Text(tab.titleKey)
+                    .font(.system(size: 13))
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background {
+                RoundedRectangle(cornerRadius: 7)
+                    .fill(isSelected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.clear))
+            }
+            .foregroundStyle(isSelected ? Color.white : Color.primary)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
 }
 
 #Preview {
