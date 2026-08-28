@@ -10,7 +10,11 @@ import SwiftUI
 struct ShortcutTab: View {
     var body: some View {
         Form {
-            GlobalShortcutSettingView()
+            Section {
+                GlobalShortcutSettingView()
+            } header: {
+                Text("global_shortcut_setting")
+            }
         }
         .formStyle(.grouped)
     }

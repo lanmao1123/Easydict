@@ -1,31 +1,28 @@
 //
-//  AdvancedTab.swift
+//  OCRTab.swift
 //  Easydict
 //
-//  Created by tisfeng on 2024/1/23.
-//  Copyright © 2024 izual. All rights reserved.
+//  Created by agent on 2026/8/28.
+//  Copyright © 2026 izual. All rights reserved.
 //
 
 import Defaults
 import SFSafeSymbols
 import SwiftUI
 
-struct AdvancedTab: View {
+/// Settings for the OCR feature: silent-OCR auto copy plus recognition
+/// providers and text post-processing.
+struct OCRTab: View {
     // MARK: Internal
 
     var body: some View {
         Form {
             Section {
-                Toggle(isOn: $enableBetaFeature) {
-                    AdvancedTabItemView(
-                        color: .blue,
-                        icon: .hammerFill,
-                        labelText: "setting.advance.enable_beta_feature"
-                    )
-                }
+                Toggle("auto_copy_ocr_text", isOn: $autoCopyOCRText)
+            } header: {
+                Text("setting.general.auto_copy.header")
             }
 
-            // OCR settings section
             Section {
                 Toggle(isOn: $enableYoudaoOCR) {
                     AdvancedTabItemView(
@@ -43,15 +40,6 @@ struct AdvancedTab: View {
                         subtitleText: "setting.advance.enable_ocr_text_normalization_desc"
                     )
                 }
-
-                Toggle(isOn: $isScreenshotTipLayerHidden) {
-                    AdvancedTabItemView(
-                        color: .purple,
-                        icon: .lightbulbFill,
-                        labelText: "setting.advance.hide_screenshot_tip_layer",
-                        subtitleText: "setting.advance.hide_screenshot_tip_layer_desc"
-                    )
-                }
             } header: {
                 Text("setting.advance.header.ocr_settings")
             }
@@ -61,13 +49,11 @@ struct AdvancedTab: View {
 
     // MARK: Private
 
-    @Default(.enableBetaFeature) private var enableBetaFeature
-
+    @Default(.autoCopyOCRText) private var autoCopyOCRText
     @Default(.enableYoudaoOCR) private var enableYoudaoOCR
     @Default(.enableOCRTextNormalization) private var enableOCRTextNormalization
-    @Default(.isScreenshotTipLayerHidden) private var isScreenshotTipLayerHidden
 }
 
 #Preview {
-    AdvancedTab()
+    OCRTab()
 }

@@ -84,6 +84,15 @@ final class ClipboardStore {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 
+    /// Closes the SQLite connection. Only used when switching the store to a
+    /// new directory; further calls on a closed store fail gracefully.
+    func close() {
+        if let db {
+            sqlite3_close_v2(db)
+            self.db = nil
+        }
+    }
+
     /// High-level text insert: dedups by content hash by removing the older
     /// twin, so repeats land back on top with a fresh timestamp.
     @discardableResult

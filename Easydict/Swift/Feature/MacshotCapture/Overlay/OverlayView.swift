@@ -8044,18 +8044,16 @@ class OverlayView: NSView {
                 return bMaxX > rx && bMinX < rx + rightSize.width
             }
 
+            // The toolbar is pinned BELOW the selection at all times (user
+            // preference): when the space below is too tight, clamp to the
+            // screen's bottom edge instead of flipping above the selection.
             var by: CGFloat
             if belowFits, !wouldOverlapRight(candidateY: belowY) {
                 by = belowY
-            } else if aboveFits, !wouldOverlapRight(candidateY: aboveY) {
-                by = aboveY
             } else if belowFits {
-                by = belowY // overlaps but at least fits vertically
-            } else if aboveFits {
-                by = aboveY
+                by = belowY // overlaps the right bar, which dodges in step 3
             } else {
-                by = selectionRect.minY + optRowH + 6
-                by = max(bounds.minY + optRowH + 4, min(by, bounds.maxY - bottomSize.height - 4))
+                by = bounds.minY + 4
             }
 
             // ── 3. Position bottom bar X, avoiding right bar if they overlap vertically ──

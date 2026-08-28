@@ -28,7 +28,55 @@ final class ClipboardMonitor: NSObject {
     /// Poll interval; Raycast and Maccy use the same order of magnitude.
     static let pollInterval: TimeInterval = 0.5
 
+    /// UserDefaults key for the user-chosen store root (settings tab).
+    static let storePathKey = "clipboardStorePath"
+
     private(set) var store: ClipboardStore?
+
+    /// Switches the store to `url`: copies the existing history.db and images
+    /// over (unless the destination already has its own database), swaps the
+    /// live store on the main actor, then reports the outcome. Capture keeps
+    /// writing through the old store until the swap lands.
+    func changeStoreDirectory(to url: URL, completion: @escaping (Bool) -> ()) {
+        workQueue.async { [weak self] in
+            guard let self else { return }
+            let fm = FileManager.default
+            let oldStore = store
+            do {
+                try fm.createDirectory(at: url, withIntermediateDirectories: true)
+                let targetDB = url.appendingPathComponent("history.db")
+                if let oldStore,
+                   fm.fileExists(atPath: oldStore.directory.appendingPathComponent("history.db").path),
+                   !fm.fileExists(atPath: targetDB.path) {
+                    try fm.copyItem(
+                        at: oldStore.directory.appendingPathComponent("history.db"), to: targetDB
+                    )
+                    let oldImages = oldStore.directory.appendingPathComponent("images", isDirectory: true)
+                    let newImages = url.appendingPathComponent("images", isDirectory: true)
+                    try fm.createDirectory(at: newImages, withIntermediateDirectories: true)
+                    for file in (try? fm.contentsOfDirectory(atPath: oldImages.path)) ?? [] {
+                        try? fm.copyItem(
+                            at: oldImages.appendingPathComponent(file),
+                            to: newImages.appendingPathComponent(file)
+                        )
+                    }
+                }
+                let newStore = try ClipboardStore(directory: url)
+                DispatchQueue.main.async {
+                    let previous = self.store
+                    self.store = newStore
+                    previous?.close()
+                    logInfo("[Clipboard] Store switched to \(url.path)")
+                    completion(true)
+                }
+            } catch {
+                logError("[Clipboard] Store switch failed: \(String(describing: error))")
+                DispatchQueue.main.async {
+                    completion(false)
+                }
+            }
+        }
+    }
 
     /// Starts polling; safe to call repeatedly. Store failures disable
     /// capture but never crash the app.
@@ -88,6 +136,10 @@ final class ClipboardMonitor: NSObject {
     private let workQueue = DispatchQueue(label: "com.izual.Easydict.clipboard.store", qos: .utility)
 
     private static func defaultDirectory() -> URL {
+        if let configured = UserDefaults.standard.string(forKey: storePathKey)?.trimmingCharacters(in: .whitespaces),
+           !configured.isEmpty {
+            return URL(fileURLWithPath: (configured as NSString).expandingTildeInPath)
+        }
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
         return support
@@ -166,11 +218,26 @@ final class ClipboardMonitor: NSObject {
         guard let store else { return }
         do {
             try store.insertText(text, sourceApp: sourceName, sourceBundleID: sourceBundle)
-            try store.pruneTexts()
+            try store.pruneTexts(
+                maxCount: configuredMaxCount(),
+                ageLimit: TimeInterval(configuredAgeDays() * 24 * 3600)
+            )
             logInfo("[Clipboard] Captured text, bytes=\(text.utf8.count)")
         } catch {
             logError("[Clipboard] Text insert failed: \(String(describing: error))")
         }
+    }
+
+    /// Reads the clipboard settings tab's limits; falls back to the store's
+    /// own defaults (500 entries / 90 days) when unset.
+    private func configuredMaxCount() -> Int {
+        let stored = UserDefaults.standard.object(forKey: "clipboardHistoryMaxCount") as? Int
+        return stored ?? 500
+    }
+
+    private func configuredAgeDays() -> Int {
+        let stored = UserDefaults.standard.object(forKey: "clipboardHistoryAgeDays") as? Int
+        return stored ?? 90
     }
 
     private func storeImage(_ payload: ImagePayload, sourceName: String?, sourceBundle: String?) {

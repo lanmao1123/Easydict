@@ -58,12 +58,6 @@ struct GeneralTab: View {
             }
 
             Section {
-                Toggle("auto_copy_ocr_text", isOn: $autoCopyOCRText)
-            } header: {
-                Text("setting.general.auto_copy.header")
-            }
-
-            Section {
                 Picker("setting.general.language", selection: $languageState.language) {
                     ForEach(LanguageState.LanguageType.allCases, id: \.rawValue) { language in
                         Text(language.name)
@@ -118,6 +112,10 @@ struct GeneralTab: View {
                     .labelsHidden()
                 }
 
+                Toggle(isOn: $enableBetaFeature) {
+                    Text("setting.advance.enable_beta_feature")
+                }
+
                 LaunchAtLogin.Toggle {
                     Text("launch_at_startup")
                 }
@@ -158,6 +156,18 @@ struct GeneralTab: View {
             } header: {
                 Text("setting.general.app_setting.header")
             }
+
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("setting.general.raycast.title")
+                    Text("setting.general.raycast.setup_guide")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.vertical, 2)
+            } header: {
+                Text("setting.general.raycast.header")
+            }
         }
         .formStyle(.grouped)
         .task {
@@ -197,9 +207,9 @@ struct GeneralTab: View {
 
     // Query language
     @Default(.languageDetectOptimize) private var languageDetectOptimize
+    @Default(.enableBetaFeature) private var enableBetaFeature
 
     // Auto copy
-    @Default(.autoCopyOCRText) private var autoCopyOCRText
 
     @Default(.appearanceType) private var appearanceType
     @Default(.hideMenuBarIcon) private var hideMenuBarIcon
@@ -207,6 +217,8 @@ struct GeneralTab: View {
     @Default(.enableMarkdownRendering) private var enableMarkdownRendering
 
     @Default(.includeBetaUpdates) private var includeBetaUpdates
+
+    // MARK: Raycast Integration
 
     private var version: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
@@ -218,6 +230,9 @@ struct GeneralTab: View {
         Defaults[.snipToolsEditShortcut] != nil
     }
 
+    /// Opens the Easy Dictionary extension page. For an installed extension
+    /// Raycast launches it; otherwise it shows the store install page, which
+    /// is the closest thing to one-click integration Raycast allows.
     private func logSettings(_ parameters: [String: Any]) {
         AnalyticsService.logEvent(withName: "settings", parameters: parameters)
     }

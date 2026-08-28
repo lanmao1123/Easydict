@@ -12,9 +12,11 @@ import SwiftUI
 
 enum SettingTab: Int, Identifiable {
     case general
-    case service
-    case advanced
+    case screenshot
+    case clipboard
+    case ocr
     case shortcut
+    case service
     case about
 
     // MARK: Internal
@@ -24,9 +26,11 @@ enum SettingTab: Int, Identifiable {
     var titleKey: LocalizedStringKey {
         switch self {
         case .general: "setting_general"
-        case .service: "service"
+        case .screenshot: "setting.sidebar.screenshot"
+        case .clipboard: "setting.sidebar.clipboard"
+        case .ocr: "setting.sidebar.ocr"
         case .shortcut: "shortcut"
-        case .advanced: "advanced"
+        case .service: "setting.sidebar.translate"
         case .about: "setting.about"
         }
     }
@@ -34,9 +38,11 @@ enum SettingTab: Int, Identifiable {
     var systemImage: String {
         switch self {
         case .general: "gear"
-        case .service: "briefcase"
+        case .screenshot: "camera.viewfinder"
+        case .clipboard: "clipboard"
+        case .ocr: "doc.text.magnifyingglass"
         case .shortcut: "command.square"
-        case .advanced: "gearshape.2"
+        case .service: "translate"
         case .about: "info.bubble"
         }
     }
@@ -65,7 +71,7 @@ private enum SettingSidebarGroup: String, CaseIterable, Identifiable {
     var tabs: [SettingTab] {
         switch self {
         case .general: [.general]
-        case .features: [.service, .shortcut, .advanced]
+        case .features: [.screenshot, .clipboard, .ocr, .shortcut, .service]
         case .other: [.about]
         }
     }
@@ -162,9 +168,11 @@ struct SettingView: View {
         Group {
             switch selection {
             case .general: GeneralTab()
-            case .service: ServiceTab()
+            case .screenshot: ScreenshotTab()
+            case .clipboard: ClipboardTab()
+            case .ocr: OCRTab()
             case .shortcut: ShortcutTab()
-            case .advanced: AdvancedTab()
+            case .service: ServiceTab()
             case .about: AboutTab()
             }
         }

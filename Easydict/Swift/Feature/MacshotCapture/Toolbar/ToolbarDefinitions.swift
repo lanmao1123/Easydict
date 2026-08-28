@@ -80,28 +80,15 @@ enum ToolbarCustomAction: Int {
     // MARK: Internal
 
     static var allKnownActions: [ToolbarCustomAction] {
-        var actions: [ToolbarCustomAction] = []
-        #if !OFFLINE
-        actions.append(.upload)
-        #endif
-        actions.append(contentsOf: [
-            .pin, .ocr, .beautify, .removeBackground, .autoRedact, .reserved1007,
-            .translate, .record, .scrollCapture, .invertColors, .share, .effects,
-        ])
-        return actions
+        [.pin, .ocr]
     }
 
     static var bottomToolbarActions: [ToolbarCustomAction] {
-        [.invertColors, .effects, .beautify, .removeBackground]
+        []
     }
 
     static var rightToolbarActions: [ToolbarCustomAction] {
-        var actions: [ToolbarCustomAction] = [.share]
-        #if !OFFLINE
-        actions.append(.upload)
-        #endif
-        actions.append(contentsOf: [.pin, .ocr, .translate, .scrollCapture, .record])
-        return actions
+        [.pin, .ocr]
     }
 
     static var bottomSettingsActions: [ToolbarCustomAction] {
@@ -109,12 +96,7 @@ enum ToolbarCustomAction: Int {
     }
 
     static var rightSettingsActions: [ToolbarCustomAction] {
-        var actions: [ToolbarCustomAction] = []
-        #if !OFFLINE
-        actions.append(.upload)
-        #endif
-        actions.append(contentsOf: [.pin, .ocr, .autoRedact, .translate, .record, .scrollCapture, .share])
-        return actions
+        [.pin, .ocr]
     }
 
     var settingsLabel: String {
@@ -517,12 +499,6 @@ class ToolbarLayout {
                 ToolbarButton(
                     action: .moveSelection, sfSymbol: "arrow.up.and.down.and.arrow.left.and.right",
                     tooltip: L("Move Selection")
-                )
-            )
-            buttons.append(
-                ToolbarButton(
-                    action: .detach, sfSymbol: "arrow.up.forward.app",
-                    tooltip: L("Open in Editor Window")
                 )
             )
         }

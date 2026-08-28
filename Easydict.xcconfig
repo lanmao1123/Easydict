@@ -1,6 +1,2 @@
-DEVELOPMENT_TEAM = 45Z6V4YD5U
-CODE_SIGN_IDENTITY = Apple Development
-CODE_SIGN_STYLE = Automatic
-
-// User-visible app name (Dock, menu bar, Settings window title)
-DISPLAY_NAME = yaomao
+// Official (Release) build configuration.
+DISPLAY_NAME = Yaomao
