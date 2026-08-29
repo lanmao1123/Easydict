@@ -246,6 +246,19 @@ final class ClipboardStore {
         return victims.count
     }
 
+    /// Removes every row along with each entry's payload files — the store
+    /// side of the panel's "Clear all" action. Returns the removed row count.
+    @discardableResult
+    func deleteAllEntries() throws -> Int {
+        let victims = try query("SELECT \(Self.columns) FROM entries", bindings: [])
+        for entry in victims {
+            removeFiles(of: entry)
+        }
+        try exec("DELETE FROM entries")
+        logInfo("[Clipboard] Cleared all entries, removed=\(victims.count)")
+        return victims.count
+    }
+
     /// SUM of image payload sizes — the number a capacity guard acts on.
     func totalImageBytes() throws -> Int {
         var statement: OpaquePointer?
@@ -256,6 +269,19 @@ final class ClipboardStore {
             -1,
             &statement,
             nil
+        ) == SQLITE_OK else {
+            throw ClipboardStoreError.prepareFailed(String(cString: sqlite3_errmsg(db)))
+        }
+        guard sqlite3_step(statement) == SQLITE_ROW else { return 0 }
+        return Int(sqlite3_column_int64(statement, 0))
+    }
+
+    /// Number of stored image rows — the count-driven eviction gauge.
+    func imageCount() throws -> Int {
+        var statement: OpaquePointer?
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_prepare_v2(
+            db, "SELECT COUNT(*) FROM entries WHERE kind = 'image'", -1, &statement, nil
         ) == SQLITE_OK else {
             throw ClipboardStoreError.prepareFailed(String(cString: sqlite3_errmsg(db)))
         }

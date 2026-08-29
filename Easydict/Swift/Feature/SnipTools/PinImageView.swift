@@ -27,6 +27,9 @@ final class PinImageState: ObservableObject {
     /// Current zoom factor, clamped to readable bounds.
     @Published private(set) var scale: CGFloat = 1
 
+    /// Window opacity, adjustable with ⌥+scroll like Snipaste.
+    @Published private(set) var opacity: Double = 1
+
     /// True while the pin's panel is the key window, i.e. "selected".
     @Published var isFocused = false
 
@@ -42,10 +45,16 @@ final class PinImageState: ObservableObject {
         scale = min(max(scale * factor, Self.minScale), Self.maxScale)
     }
 
+    /// Adds a signed opacity delta, clamped so a pin never fully disappears.
+    func adjustOpacity(by delta: Double) {
+        opacity = min(max(opacity + delta, Self.minOpacity), 1)
+    }
+
     // MARK: Private
 
     private static let minScale: CGFloat = 0.05
     private static let maxScale: CGFloat = 20
+    private static let minOpacity = 0.15
 }
 
 // MARK: - PinImageView
@@ -68,6 +77,7 @@ struct PinImageView: View {
             .resizable()
             .scaledToFit()
             .frame(width: state.displaySize.width, height: state.displaySize.height)
+            .opacity(state.opacity)
             // A focused pin shows an accent outline so "selected" is visible,
             // matching the click-to-select semantics ⌘C relies on.
             .overlay(
@@ -82,13 +92,17 @@ struct PinImageView: View {
 
 // MARK: - PinImageHostingView
 
-/// Hosting view that turns mouse wheel scrolling into zoom steps. Trackpad
-/// pinches are handled by PinImageManager's system-level session tap, which
-/// observes gestures regardless of which app is active; this view must NOT
-/// also zoom on `magnify` or one gesture would zoom the pin twice.
+/// Hosting view that turns mouse wheel scrolling into zoom steps and
+/// ⌥+scroll into opacity steps. Trackpad pinches are handled by
+/// PinImageManager's system-level session tap, which observes gestures
+/// regardless of which app is active; this view must NOT also zoom on
+/// `magnify` or one gesture would zoom the pin twice.
 final class PinImageHostingView<Content: View>: NSHostingView<Content> {
     /// Called with a multiplicative zoom factor derived from the input.
     var onZoom: ((CGFloat) -> ())?
+
+    /// Called with a signed opacity delta for ⌥+scroll.
+    var onOpacity: ((Double) -> ())?
 
     override func scrollWheel(with event: NSEvent) {
         // Direction deliberately follows the raw delta: after trying the
@@ -97,6 +111,12 @@ final class PinImageHostingView<Content: View>: NSHostingView<Content> {
         let deltaY = event.scrollingDeltaY
         guard deltaY != 0 else {
             super.scrollWheel(with: event)
+            return
+        }
+        if event.modifierFlags.contains(.option) {
+            // exp() at a gentler divisor gives ~8% steps per wheel notch —
+            // fine control from opaque to near-invisible.
+            onOpacity?(Double(exp(deltaY / 120) - 1))
             return
         }
         // exp() keeps precise trackpad deltas smooth; one wheel notch (±10)

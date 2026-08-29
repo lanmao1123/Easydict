@@ -78,6 +78,50 @@ struct ScreenshotTab: View {
             }
 
             Section {
+                Picker("setting.screenshot.save_action", selection: $saveAction) {
+                    Text("setting.screenshot.save_action.folder").tag(0)
+                    Text("setting.screenshot.save_action.ask").tag(1)
+                }
+
+                if saveAction == 0 {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("setting.screenshot.save_directory")
+                        Text(saveDirectoryPath)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .textSelection(.enabled)
+                        HStack {
+                            Spacer()
+                            Button("setting.screenshot.save_reveal") {
+                                revealSaveDirectory()
+                            }
+                            Button("setting.screenshot.save_choose") {
+                                chooseSaveDirectory()
+                            }
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("setting.screenshot.filename_template")
+                    TextField(
+                        "setting.screenshot.filename_placeholder",
+                        text: $filenameTemplate
+                    )
+                    .textFieldStyle(.roundedBorder)
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("setting.screenshot.filename_template_desc")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Button("setting.screenshot.filename_reset") {
+                            filenameTemplate = FilenameFormatter.defaultTemplate
+                        }
+                    }
+                }
+                .padding(.vertical, 2)
+
                 Picker("setting.screenshot.image_format", selection: $imageFormatRaw) {
                     ForEach(ImageEncoder.Format.allCases, id: \.rawValue) { format in
                         Text(format.displayName).tag(format.rawValue)
@@ -110,7 +154,38 @@ struct ScreenshotTab: View {
     @AppStorage("downscaleRetina") private var downscaleRetina = false
     @AppStorage("imageFormat") private var imageFormatRaw = "png"
 
+    // Engine-shared save preferences. Raw values mirror SaveActionPreference
+    // (0 = save to folder, 1 = ask every time); the template and directory
+    // are read by ImageSaveService/SaveDirectoryAccess on every save.
+    @AppStorage(SaveActionPreference.userDefaultsKey) private var saveAction = 0
+    @AppStorage(FilenameFormatter.userDefaultsKey) private var filenameTemplate = FilenameFormatter
+        .defaultTemplate
+
+    @State private var saveDirectoryPath = ""
+
     @Default(.isScreenshotTipLayerHidden) private var isScreenshotTipLayerHidden
+
+    private func refreshSaveDirectoryPath() {
+        saveDirectoryPath = (SaveDirectoryAccess.displayPath as NSString).expandingTildeInPath
+    }
+
+    private func revealSaveDirectory() {
+        let url = SaveDirectoryAccess.resolve()
+        NSWorkspace.shared.open(url)
+    }
+
+    private func chooseSaveDirectory() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.directoryURL = SaveDirectoryAccess.directoryHint()
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            SaveDirectoryAccess.save(url: url)
+            refreshSaveDirectoryPath()
+        }
+    }
 }
 
 #Preview {

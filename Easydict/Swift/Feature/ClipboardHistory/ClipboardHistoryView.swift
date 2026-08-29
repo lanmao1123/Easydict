@@ -143,6 +143,11 @@ final class ClipboardHistoryViewModel: ObservableObject {
         }
     }
 
+    func clearAll() {
+        guard ClipboardManager.shared.clearAll() else { return }
+        load()
+    }
+
     // MARK: Private
 
     private static func dayTitle(for date: Date) -> String {
@@ -199,9 +204,22 @@ struct ClipboardHistoryView: View {
                 .shadow(color: .black.opacity(0.30), radius: 18, y: 6)
         )
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .alert(
+            String(localized: "setting.clipboard.clear_all_confirm_title"),
+            isPresented: $showingClearConfirmation
+        ) {
+            Button(String(localized: "setting.clipboard.clear_all_confirm_delete"), role: .destructive) {
+                viewModel.clearAll()
+            }
+            Button(String(localized: "cancel"), role: .cancel) {}
+        } message: {
+            Text(String(localized: "setting.clipboard.clear_all_confirm_msg"))
+        }
     }
 
     // MARK: Private
+
+    @State private var showingClearConfirmation = false
 
     private var toolbar: some View {
         HStack(spacing: 10) {
@@ -230,6 +248,18 @@ struct ClipboardHistoryView: View {
             .pickerStyle(.menu)
             .labelsHidden()
             .frame(width: 86)
+
+            Spacer()
+
+            Button {
+                showingClearConfirmation = true
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 12))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help(String(localized: "setting.clipboard.clear_all"))
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)

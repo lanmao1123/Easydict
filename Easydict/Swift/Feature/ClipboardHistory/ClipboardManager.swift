@@ -95,6 +95,19 @@ final class ClipboardManager: NSObject {
         }
     }
 
+    @discardableResult
+    func clearAll() -> Bool {
+        guard let store = ClipboardMonitor.shared.store else { return false }
+        do {
+            try store.deleteAllEntries()
+            panel?.reload()
+            return true
+        } catch {
+            logError("[Clipboard] Clear all failed: \(String(describing: error))")
+            return false
+        }
+    }
+
     func openStorageFolder() {
         NSWorkspace.shared.open(ClipboardMonitor.shared.store?.directory ?? URL(fileURLWithPath: NSHomeDirectory()))
     }

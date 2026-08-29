@@ -16,18 +16,15 @@ struct ClipboardTab: View {
     var body: some View {
         Form {
             Section {
-                Picker("setting.clipboard.max_count", selection: $maxCount) {
-                    ForEach(Self.countOptions, id: \.self) { count in
+                Picker("setting.clipboard.image_max_count", selection: $imageMaxCount) {
+                    ForEach(Self.imageCountOptions, id: \.self) { count in
                         Text("clipboard.count_option \(count)").tag(count)
-                    }
-                }
-                Picker("setting.clipboard.age_days", selection: $ageDays) {
-                    ForEach(Self.ageOptions, id: \.self) { days in
-                        Text("clipboard.days_option \(days)").tag(days)
                     }
                 }
             } header: {
                 Text("setting.sidebar.clipboard")
+            } footer: {
+                Text("setting.clipboard.limits_desc")
             }
 
             Section {
@@ -37,6 +34,11 @@ struct ClipboardTab: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .textSelection(.enabled)
+                    if let storageSize {
+                        Text("setting.clipboard.usage \(storageSize)")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
                     HStack {
                         Spacer()
                         Button("setting.clipboard.reveal") {
@@ -55,19 +57,49 @@ struct ClipboardTab: View {
             }
         }
         .formStyle(.grouped)
-        .onAppear { storePath = activeStorePath() }
+        .onAppear {
+            storePath = activeStorePath()
+            recalcStorageSize()
+        }
     }
 
     // MARK: Private
 
-    private static let countOptions = [100, 200, 500, 1000]
-    private static let ageOptions = [30, 90, 180, 365]
+    private static let imageCountOptions = [50, 100, 200, 500]
 
-    // Defaults mirror ClipboardMonitor's pruning fallbacks (500 entries / 90d).
-    @AppStorage("clipboardHistoryMaxCount") private var maxCount = 500
-    @AppStorage("clipboardHistoryAgeDays") private var ageDays = 90
+    // Default mirrors ClipboardMonitor's image eviction fallback (100).
+    @AppStorage("clipboardImageMaxCount") private var imageMaxCount = 100
 
     @State private var storePath = ""
+    @State private var storageSize: String?
+
+    private static func directorySize(_ url: URL) -> Int64 {
+        let fm = FileManager.default
+        var total: Int64 = 0
+        guard let enumerator = fm.enumerator(
+            at: url, includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey]
+        ) else { return 0 }
+        for case let fileURL as URL in enumerator {
+            guard let values = try? fileURL.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey]),
+                  values.isRegularFile == true else { continue }
+            total += Int64(values.fileSize ?? 0)
+        }
+        return total
+    }
+
+    /// Sums regular-file sizes under the store directory off the main thread,
+    /// then formats the total in the user's byte units.
+    private func recalcStorageSize() {
+        guard let directory = ClipboardMonitor.shared.store?.directory else { return }
+        DispatchQueue.global(qos: .utility).async {
+            let total = Self.directorySize(directory)
+            DispatchQueue.main.async {
+                let formatter = ByteCountFormatter()
+                formatter.countStyle = .file
+                storageSize = formatter.string(fromByteCount: total)
+            }
+        }
+    }
 
     private func activeStorePath() -> String {
         ClipboardMonitor.shared.store?.directory.path
@@ -92,6 +124,7 @@ struct ClipboardTab: View {
             guard response == .OK, let url = panel.url else { return }
             ClipboardMonitor.shared.changeStoreDirectory(to: url) { success in
                 storePath = activeStorePath()
+                recalcStorageSize()
                 if success {
                     UserDefaults.standard.set(url.path, forKey: ClipboardMonitor.storePathKey)
                     EZToast.showText(NSLocalizedString("setting.clipboard.moved", comment: ""))

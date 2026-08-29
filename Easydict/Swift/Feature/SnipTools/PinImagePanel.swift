@@ -45,6 +45,9 @@ final class PinImagePanel: NSPanel {
         hostingView.onZoom = { [weak self] factor in
             self?.zoom(by: factor)
         }
+        hostingView.onOpacity = { [weak self] delta in
+            self?.state.adjustOpacity(by: delta)
+        }
         contentView = hostingView
     }
 

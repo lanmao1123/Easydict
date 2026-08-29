@@ -218,26 +218,12 @@ final class ClipboardMonitor: NSObject {
         guard let store else { return }
         do {
             try store.insertText(text, sourceApp: sourceName, sourceBundleID: sourceBundle)
-            try store.pruneTexts(
-                maxCount: configuredMaxCount(),
-                ageLimit: TimeInterval(configuredAgeDays() * 24 * 3600)
-            )
+            // Text and other non-image entries are kept forever — only images
+            // carry storage pressure, and they are capped by count below.
             logInfo("[Clipboard] Captured text, bytes=\(text.utf8.count)")
         } catch {
             logError("[Clipboard] Text insert failed: \(String(describing: error))")
         }
-    }
-
-    /// Reads the clipboard settings tab's limits; falls back to the store's
-    /// own defaults (500 entries / 90 days) when unset.
-    private func configuredMaxCount() -> Int {
-        let stored = UserDefaults.standard.object(forKey: "clipboardHistoryMaxCount") as? Int
-        return stored ?? 500
-    }
-
-    private func configuredAgeDays() -> Int {
-        let stored = UserDefaults.standard.object(forKey: "clipboardHistoryAgeDays") as? Int
-        return stored ?? 90
     }
 
     private func storeImage(_ payload: ImagePayload, sourceName: String?, sourceBundle: String?) {
@@ -269,9 +255,24 @@ final class ClipboardMonitor: NSObject {
 
     /// The capacity APIs existed but nothing called them, so the image folder
     /// grew forever. Keep it under ~500 MB / 60 days.
+    /// Evicts the oldest images beyond the user's count cap (default 100),
+    /// deleting their files too. A 500 MB total-size backstop still applies
+    /// for unusually large payloads. Text entries are never touched here.
     private func pruneImageStorageIfNeeded() {
         guard let store else { return }
         do {
+            let maxCount = UserDefaults.standard.object(forKey: "clipboardImageMaxCount") as? Int ?? 100
+            let imageCount = try store.imageCount()
+            if imageCount > maxCount {
+                let victims = try store.oldestImages(limit: imageCount - maxCount)
+                for entry in victims {
+                    try store.delete(id: entry.id)
+                }
+                if !victims.isEmpty {
+                    logInfo("[Clipboard] Image cap pruned, removed=\(victims.count), cap=\(maxCount)")
+                }
+            }
+
             let capBytes = 500 * 1024 * 1024
             if try store.totalImageBytes() > capBytes {
                 let removed = try store.deleteImages(olderThan: Date().addingTimeInterval(-60 * 24 * 3600))
