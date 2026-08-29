@@ -10,9 +10,16 @@ import CryptoSwift
 import Foundation
 
 extension String {
+    private static let secretCipherName = "Easydict"
+
     private var aes: AES {
-        let bundleName = Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as! String
-        let key = String(bundleName.sha256().prefix(16))
+        /*
+         EncryptedSecretKeys.plist was encrypted by upstream with the bundle
+         name "Easydict", so the cipher key must derive from that fixed name.
+         Deriving it from the live CFBundleName broke every bundled secret
+         (built-in AI key/endpoint) the moment the app was rebranded Yaomao.
+         */
+        let key = String(Self.secretCipherName.sha256().prefix(16))
         let aes = try! AES(key: key, iv: key) // aes128
         return aes
     }

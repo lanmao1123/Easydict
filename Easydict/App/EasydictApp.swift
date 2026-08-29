@@ -58,7 +58,7 @@ struct EasydictApp: App {
                 .environment(\.locale, .init(identifier: I18nHelper.shared.localizeCode))
         } label: {
             Label {
-                Text("Easydict")
+                Text(displayAppName)
                     .openSettingsAccess() // trick way for open setting
                     .onReceive(
                         NotificationCenter.default.publisher(
@@ -81,7 +81,7 @@ struct EasydictApp: App {
                 #endif
                     .scaledToFit()
             }
-            .help("Easydict 🍃")
+            .help("\(displayAppName) 🍃")
         }
         .menuBarExtraStyle(.menu)
         .commands {
@@ -110,6 +110,12 @@ struct EasydictApp: App {
     @StateObject private var languageState = LanguageState()
 
     @Default(.selectedMenuBarIcon) private var menuBarIcon
+
+    /// Menu-bar header and tooltip follow the packaged display name so the
+    /// branding stays in one place (Info.plist CFBundleDisplayName).
+    private var displayAppName: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "Yaomao"
+    }
 }
 
 extension Bool {
