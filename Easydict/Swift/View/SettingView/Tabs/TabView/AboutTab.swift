@@ -61,7 +61,7 @@ struct AboutTab: View {
     private var appName: String {
         Bundle.main.infoDictionary?["CFBundleDisplayName"] as? String
             ?? Bundle.main.infoDictionary?["CFBundleName"] as? String
-            ?? "yaomao"
+            ?? "Yaomao"
     }
 
     private var version: String {

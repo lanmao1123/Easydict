@@ -57,7 +57,7 @@ struct MenuItemView: View {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
 
     private var versionString: String {
-        "yaomao  \(currentVersion)"
+        "Yaomao  \(currentVersion)"
     }
 
     @ViewBuilder private var screenshotDockTranslateItem: some View {
