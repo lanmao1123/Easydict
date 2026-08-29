@@ -54,6 +54,7 @@ final class PinImageManager: NSObject {
         let panel = PinImagePanel(image: image)
 
         pins.append(panel)
+        lastActivePanel = panel
         panel.state.onCloseRequest = { [weak self, weak panel] in
             guard let panel else { return }
             self?.remove(panel)
@@ -165,11 +166,24 @@ final class PinImageManager: NSObject {
     /// Local monitor copying the focused pin on ⌘C, alive while pins exist.
     private var keyDownMonitor: Any?
 
+    /// Most recently pinned or zoomed pin. A pinch with no cursor hit and no
+    /// focused pin falls back to it instead of doing nothing.
+    private var lastActivePanel: PinImagePanel?
+
+    /// Throttles pinch diagnostic logging to one line per second.
+    private var lastPinchLogAt = Date.distantPast
+
+    /// Rebuilds the session gesture tap after sleep/wake cycles — the system
+    /// can stop delivering gesture events to a session tap across wake, which
+    /// used to leave pinch dead until relaunch.
+    private var wakeObserver: NSObjectProtocol?
+
     // MARK: Event monitors
 
     private func installEventMonitorsIfNeeded() {
         installPinchTapIfNeeded()
         installKeyDownMonitorIfNeeded()
+        installWakeObserverIfNeeded()
     }
 
     private func removeEventMonitors() {
@@ -188,10 +202,32 @@ final class PinImageManager: NSObject {
         }
     }
 
+    /// Watches wake notifications so a dead session tap is rebuilt on the
+    /// next pin install instead of staying silent until relaunch.
+    private func installWakeObserverIfNeeded() {
+        guard wakeObserver == nil else { return }
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, !self.pins.isEmpty else { return }
+                logInfo("[SnipTools] System woke, rebuilding pinch tap")
+                self.removePinchTap()
+                self.installPinchTapIfNeeded()
+            }
+        }
+    }
+
     /// Installs a listen-only session event tap for gesture events. Listen-only
     /// taps never modify or swallow events; they only observe, so this cannot
     /// interfere with the frontmost app's own gesture handling.
     private func installPinchTapIfNeeded() {
+        // An invalid Mach port (post-invalidation, post-wake glitch) must be
+        // rebuilt, otherwise the stale reference blocks reinstallation forever.
+        if let pinchTap, !CFMachPortIsValid(pinchTap) {
+            logWarn("[SnipTools] Pinch tap port invalid, rebuilding")
+            removePinchTap()
+        }
         guard pinchTap == nil else { return }
 
         let box = PinchTapBox { [weak self] magnification in
@@ -295,12 +331,41 @@ final class PinImageManager: NSObject {
     private func handleSystemPinch(magnification: CGFloat) {
         guard !pins.isEmpty else { return }
 
+        guard let target = resolvePinTarget() else {
+            throttlePinchLog("Pinch ignored, no pin resolved, pins=\(pins.count), source=tap")
+            return
+        }
+
+        throttlePinchLog("Pinch zoom over pin, source=tap")
+        target.zoom(by: 1 + magnification)
+    }
+
+    /// Picks which pin a pinch/zoom gesture drives: the pin under the cursor
+    /// first, then the focused (key) pin, then the most recently active pin.
+    /// The last fallback matters — after clicking away, no pin is key and the
+    /// cursor is usually elsewhere, which users experienced as "pinch works
+    /// only sometimes".
+    private func resolvePinTarget() -> PinImagePanel? {
         let mouse = NSEvent.mouseLocation
         let target = pins.last(where: { NSPointInRect(mouse, $0.frame) })
             ?? pins.first(where: { $0.isKeyWindow })
-        guard let target else { return }
+        if let target {
+            lastActivePanel = target
+            return target
+        }
+        // The fallback must never resurrect a closed panel.
+        if let last = lastActivePanel, pins.contains(last) {
+            return last
+        }
+        lastActivePanel = nil
+        return nil
+    }
 
-        target.zoom(by: 1 + magnification)
+    /// One diagnostic line per pinch gesture at most, shared by both channels.
+    private func throttlePinchLog(_ message: String) {
+        guard Date().timeIntervalSince(lastPinchLogAt) > 1.0 else { return }
+        lastPinchLogAt = Date()
+        logInfo("[SnipTools] \(message)")
     }
 
     /// Handles ⌘C (copy) and ESC (close) over a focused pin; every other key
@@ -334,11 +399,7 @@ final class PinImageManager: NSObject {
     private func handleMagnify(_ event: NSEvent, source: String = "local") -> Bool {
         guard abs(event.magnification) > 0.0001 else { return false }
 
-        let mouse = NSEvent.mouseLocation
-        let target = pins.last(where: { NSPointInRect(mouse, $0.frame) })
-            ?? pins.first(where: { $0.isKeyWindow })
-
-        guard let target else {
+        guard let target = resolvePinTarget() else {
             if event.phase == .began {
                 logInfo(
                     "[SnipTools] Pinch ignored, no pin under cursor or focused, pins=\(pins.count), source=\(source)"
