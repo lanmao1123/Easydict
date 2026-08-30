@@ -25,7 +25,12 @@ final class EZURLActionRouter: NSObject {
     @discardableResult
     static func handle(_ action: String) -> Bool {
         let normalized = action.lowercased().trimmingCharacters(in: .whitespaces)
-        guard actions.contains(normalized) else { return false }
+        #if DEBUG
+        let supported = actions.union(debugActions)
+        #else
+        let supported = actions
+        #endif
+        guard supported.contains(normalized) else { return false }
 
         logInfo("URL action dispatched, action=\(normalized)")
 
@@ -42,6 +47,13 @@ final class EZURLActionRouter: NSObject {
     private static let actions: Set<String> = [
         "snip", "dock-translate", "clipboard-history", "ocr", "pin",
     ]
+
+    #if DEBUG
+    /// Debug-only actions used by headless verification scripts.
+    private static let debugActions: Set<String> = [
+        "debug-pinch",
+    ]
+    #endif
 
     @MainActor
     private static func dispatch(_ action: String) {
@@ -64,7 +76,27 @@ final class EZURLActionRouter: NSObject {
             Task { await SnipToolsManager.shared.pinToScreen() }
 
         default:
-            break
+            #if DEBUG
+            if debugActions.contains(action) {
+                handleDebugAction(action)
+            }
+            #endif
         }
     }
+
+    #if DEBUG
+    /// easydictd://debug-pinch drives the pinch pipeline without a trackpad:
+    /// pins a synthetic image when none exists, then zooms through the exact
+    /// production path so headless scripts can assert real frame changes.
+    @MainActor
+    private static func handleDebugAction(_ action: String) {
+        guard action == "debug-pinch" else { return }
+        let target = PinImageManager.shared.debugPinTarget()
+        guard let target else {
+            logInfo("debug-pinch: no pin available, pinned synthetic one; call again")
+            return
+        }
+        PinImageManager.shared.applyDebugPinch(to: target, magnification: 0.3)
+    }
+    #endif
 }

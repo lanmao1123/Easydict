@@ -93,16 +93,27 @@ struct PinImageView: View {
 // MARK: - PinImageHostingView
 
 /// Hosting view that turns mouse wheel scrolling into zoom steps and
-/// ⌥+scroll into opacity steps. Trackpad pinches are handled by
-/// PinImageManager's system-level session tap, which observes gestures
-/// regardless of which app is active; this view must NOT also zoom on
-/// `magnify` or one gesture would zoom the pin twice.
+/// ⌥+scroll into opacity steps. The trackpad pinch delivered straight to
+/// this window is the PRIMARY zoom path — AppKit routes gesture events to
+/// the window under the cursor exactly like scrollWheel, which has never
+/// failed, while the system-wide tap only sporadically receives gesture
+/// data frames. PinImageManager.noteViewPinchHandled dedupes the tap
+/// fallback within a short window so one gesture never zooms twice.
 final class PinImageHostingView<Content: View>: NSHostingView<Content> {
     /// Called with a multiplicative zoom factor derived from the input.
     var onZoom: ((CGFloat) -> ())?
 
     /// Called with a signed opacity delta for ⌥+scroll.
     var onOpacity: ((Double) -> ())?
+
+    override func magnify(with event: NSEvent) {
+        // Only gestures routed to this window land here — the cursor is over
+        // this pin, the same routing contract as scrollWheel below.
+        if let panel = window as? PinImagePanel {
+            panel.handleDirectPinch(magnification: event.magnification)
+        }
+        super.magnify(with: event)
+    }
 
     override func scrollWheel(with event: NSEvent) {
         // Direction deliberately follows the raw delta: after trying the
