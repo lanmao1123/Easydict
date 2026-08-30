@@ -490,6 +490,40 @@ public class AppleOCREngine: NSObject {
     }
 }
 
+// MARK: - DockOCRLine
+
+/// One recognized text line with its normalized Vision bounding box
+/// (0-1 coordinates, bottom-left origin), used by the dock translate flow
+/// to align translated paragraphs with the original on-screen pixels.
+struct DockOCRLine {
+    let text: String
+    let rect: CGRect
+}
+
+// MARK: - Segmented Recognition
+
+extension AppleOCREngine {
+    /// Recognizes text lines together with their normalized bounding boxes.
+    ///
+    /// The regular `recognizeText` path strips Vision geometry when filling
+    /// `EZOCRResult`; the dock translate flow needs that geometry to keep
+    /// translated paragraphs aligned with the original on-screen lines.
+    func recognizeSegments(
+        image: NSImage,
+        language: Language = .auto
+    ) async throws
+        -> [DockOCRLine] {
+        guard image.isValid else {
+            throw QueryError.error(type: .parameter, message: "Invalid image provided for OCR")
+        }
+        guard let cgImage = image.toCGImage() else {
+            throw QueryError.error(type: .parameter, message: "Failed to convert NSImage for OCR")
+        }
+        let observations = try await performVisionOCR(on: cgImage, language: language)
+        return observations.map { DockOCRLine(text: $0.firstText, rect: $0.boundingBox) }
+    }
+}
+
 // MARK: - ContinuationGate
 
 /// Coordinates a checked continuation so only the first completion wins.

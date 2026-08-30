@@ -51,7 +51,7 @@ final class EZURLActionRouter: NSObject {
     #if DEBUG
     /// Debug-only actions used by headless verification scripts.
     private static let debugActions: Set<String> = [
-        "debug-pinch",
+        "debug-pinch", "debug-dock-translate", "debug-scale",
     ]
     #endif
 
@@ -90,6 +90,14 @@ final class EZURLActionRouter: NSObject {
     /// production path so headless scripts can assert real frame changes.
     @MainActor
     private static func handleDebugAction(_ action: String) {
+        if action == "debug-dock-translate" {
+            ScreenshotDockManager.shared.debugTranslate()
+            return
+        }
+        if action == "debug-scale" {
+            ScreenshotDockManager.shared.debugScaleFont()
+            return
+        }
         guard action == "debug-pinch" else { return }
         let target = PinImageManager.shared.debugPinTarget()
         guard let target else {

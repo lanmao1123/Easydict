@@ -8275,37 +8275,37 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Please go to System Settings - Privacy & Security - Screen Recording & System Audio page to enable permissions for Easydict."
+            "value": "Please go to System Settings - Privacy & Security - Screen Recording & System Audio page to enable permissions for Yaomao."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Por favor, ve a Configuración del Sistema - Privacidad y Seguridad - Grabación de pantalla y audio del sistema para habilitar los permisos para Easydict."
+            "value": "Por favor, ve a Configuración del Sistema - Privacidad y Seguridad - Grabación de pantalla y audio del sistema para habilitar los permisos para Yaomao."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "システム設定 - プライバシーとセキュリティ - 画面収録とシステムオーディオ のページで Easydict の権限を有効にしてください。"
+            "value": "システム設定 - プライバシーとセキュリティ - 画面収録とシステムオーディオ のページで Yaomao の権限を有効にしてください。"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Prejdi do Systémové nastavenia > Súkromie a bezpečnosť > Nahrávanie obrazovky a systémového audia o povoľ oprávnenia pre Easydict."
+            "value": "Prejdi do Systémové nastavenia > Súkromie a bezpečnosť > Nahrávanie obrazovky a systémového audia o povoľ oprávnenia pre Yaomao."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "请前往 \"系统设置-隐私和安全-录屏与系统录音\" 页面，为 Easydict 启用权限。"
+            "value": "请前往 \"系统设置-隐私和安全-录屏与系统录音\" 页面，为 Yaomao 启用权限。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "請前往系統設定 - 隱私權與安全性 - 螢幕錄製與系統音訊頁面，為 Easydict 啟用權限。"
+            "value": "請前往系統設定 - 隱私權與安全性 - 螢幕錄製與系統音訊頁面，為 Yaomao 啟用權限。"
           }
         }
       }

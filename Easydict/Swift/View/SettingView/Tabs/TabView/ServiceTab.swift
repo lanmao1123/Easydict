@@ -187,10 +187,11 @@ class ServiceTabViewModel: ObservableObject {
 
     /// The dock translate panel takes its translation from the first enabled
     /// service of the main-window list, so that list stays the single source
-    /// of truth. Only the key-free built-in AI service and the local
-    /// Claude Code CLI service survive — dropped services must never survive
-    /// a settings visit.
-    private static let allowedServiceTypes: [ServiceType] = [.builtInAI, .claudeCode]
+    /// of truth. The key-free built-in AI service, the local Claude Code CLI
+    /// service and Zhipu (user's own free GLM key, bypassing the shared
+    /// built-in quota) survive — dropped services must never survive a
+    /// settings visit.
+    private static let allowedServiceTypes: [ServiceType] = [.builtInAI, .zhipu, .claudeCode]
 
     private var selectedItem: ServiceTabSelection?
 
