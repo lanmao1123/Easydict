@@ -56,32 +56,6 @@ final class ScreenshotDockPanel: NSPanel {
 
     let state: ScreenshotDockState
 
-    override func sendEvent(_ event: NSEvent) {
-        /*
-         Wheel and pinch over the panel scale the text — the text-panel
-         equivalent of image-pin zooming. Handled here at the window event
-         entry so the gesture works regardless of which SwiftUI view gets
-         hit-tested; the paragraph list auto-sizes so list scrolling is not
-         needed and the events are consumed.
-         */
-        switch event.type {
-        case .scrollWheel:
-            let deltaY = event.scrollingDeltaY
-            if deltaY != 0 {
-                state.scaleFont(by: CGFloat(exp(deltaY / 90)))
-                return
-            }
-        case .magnify:
-            if event.magnification != 0 {
-                state.scaleFont(by: 1 + event.magnification)
-                return
-            }
-        default:
-            break
-        }
-        super.sendEvent(event)
-    }
-
     override func becomeKey() {
         super.becomeKey()
         state.panelFocused = true

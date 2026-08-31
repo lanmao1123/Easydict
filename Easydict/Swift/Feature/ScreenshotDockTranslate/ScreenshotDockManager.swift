@@ -57,16 +57,6 @@ final class ScreenshotDockManager: NSObject {
     }
 
     #if DEBUG
-    /// Headless verification of the font-scale pipeline and persistence.
-    func debugScaleFont() {
-        let before = state.fontScale
-        state.scaleFont(by: 1.3)
-        let stored = UserDefaults.standard.object(forKey: "dockTranslateFontScale") as? CGFloat ?? -1
-        logInfo(
-            "[ScreenshotDock] debug-scale applied, \(before)->\(state.fontScale), stored=\(stored)"
-        )
-    }
-
     /// Headless regression: drives the real translation pipeline (service
     /// pick, batched numbered-line request, parsing, state backfill) with
     /// synthetic paragraphs — no screen capture permission required.
@@ -238,6 +228,7 @@ final class ScreenshotDockManager: NSObject {
                     sources, service: service, sourceLanguage: sourceLanguage
                 )
                 logInfo("dock translation succeeded via \(serviceName)")
+                completeFlow()
                 return
             } catch is CancellationError {
                 throw CancellationError()
@@ -275,35 +266,33 @@ final class ScreenshotDockManager: NSObject {
         }
 
         var perSegmentErrors: [String] = []
-        await withTaskGroup(of: (Int, String, String?).self) { group in
-            for (index, source) in sources.enumerated() {
-                group.addTask {
-                    let queryModel = QueryModel()
-                    queryModel.inputText = source
-                    queryModel.detectedLanguage = sourceLanguage
-                    do {
-                        // Route through startQuery so the service prepares its
-                        // result lifecycle; bare translate crashes services
-                        // like Youdao (result stays nil).
-                        let result = try await service.startQuery(queryModel)
-                        if let resultError = result.error {
-                            return (index, "", resultError.localizedDescription)
-                        }
-                        let translated = result.translatedResults?.joined(separator: "\n")
-                            ?? result.translatedText
-                            ?? ""
-                        return (index, translated, nil)
-                    } catch {
-                        return (index, "", error.localizedDescription)
-                    }
+        // Sequential on purpose: EZOpenAI-style services keep per-instance
+        // mutable state (service.result), and concurrent startQuery calls
+        // raced on it, corrupting the heap (SIGTRAP in malloc). The batched
+        // streaming path above stays the fast route; this loop is the safe
+        // fallback.
+        for (index, source) in sources.enumerated() {
+            if Task.isCancelled { throw CancellationError() }
+            let queryModel = QueryModel()
+            queryModel.inputText = source
+            queryModel.detectedLanguage = sourceLanguage
+            do {
+                // Route through startQuery so the service prepares its
+                // result lifecycle; bare translate crashes services
+                // like Youdao (result stays nil).
+                let result = try await service.startQuery(queryModel)
+                if let resultError = result.error {
+                    perSegmentErrors.append(resultError.localizedDescription)
+                    continue
                 }
-            }
-            for await (index, translation, errorText) in group {
-                if let errorText {
-                    perSegmentErrors.append(errorText)
-                } else if !translation.isEmpty {
-                    updateSegment(index: index, translation: translation)
+                let translated = result.translatedResults?.joined(separator: "\n")
+                    ?? result.translatedText
+                    ?? ""
+                if !translated.isEmpty {
+                    updateSegment(index: index, translation: translated)
                 }
+            } catch {
+                perSegmentErrors.append(error.localizedDescription)
             }
         }
         if !perSegmentErrors.isEmpty {

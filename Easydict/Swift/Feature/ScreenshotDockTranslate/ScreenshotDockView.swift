@@ -12,16 +12,11 @@ import SwiftUI
 
 /// Observable state driving the phases of the dock overlay UI, shared by the
 /// translate panel and the on-screen highlight window.
+///
+/// Text sizes are fixed: the previous wheel/pinch scaling persisted stray
+/// factors twice (0.5x then 1.52x) and kept breaking the calibrated layout,
+/// so scaling was removed entirely.
 final class ScreenshotDockState: NSObject, ObservableObject {
-    // MARK: Lifecycle
-
-    override init() {
-        let stored = UserDefaults.standard.object(forKey: "dockTranslateFontScale") as? CGFloat
-        self.fontScale = min(max(stored ?? 1.0, 0.5), 3.0)
-    }
-
-    // MARK: Internal
-
     /// UI phases of the overlay, from capture feedback to final outcome.
     enum Phase: Equatable {
         case recognizing
@@ -40,10 +35,6 @@ final class ScreenshotDockState: NSObject, ObservableObject {
     /// Screen rect (global coordinates) of the paragraph currently hovered in
     /// the panel; the highlight window draws over the original pixels there.
     @Published var highlightedRect: CGRect?
-    /// Text scale applied to every font in the panel; adjusted with wheel or
-    /// pinch over the panel, persisted across sessions.
-    @Published var fontScale: CGFloat
-
     /// Invoked when the user closes the pinned panel (close button or ESC).
     var onCloseRequest: (() -> ())?
 
@@ -51,29 +42,7 @@ final class ScreenshotDockState: NSObject, ObservableObject {
     /// ESC-to-close and ⌘C-to-copy like an image pin.
     @Published var panelFocused = false
 
-    /// Visible while a scale change is settling: shows the current percentage
-    /// so the user can see where the wheel is taking the size.
-    @Published var scaleBadge: String?
-
-    /// Applies a multiplicative scale, clamped to readable bounds, persisted.
-    /// The floor guards against wheel inertia parking the text at an
-    /// unreadably tiny size (a stray 0.5x used to persist forever).
-    func scaleFont(by factor: CGFloat) {
-        fontScale = min(max(fontScale * factor, 0.75), 3.0)
-        UserDefaults.standard.set(fontScale, forKey: "dockTranslateFontScale")
-        logInfo("[ScreenshotDock] font scaled, factor=\(factor), now=\(fontScale)")
-        showScaleBadge()
-    }
-
-    /// Resets the text scale to 100%.
-    func resetFontScale() {
-        fontScale = 1.0
-        UserDefaults.standard.set(fontScale, forKey: "dockTranslateFontScale")
-        showScaleBadge()
-    }
-
     /// Resets every field so the overlay can be reused for the next capture.
-    /// The font scale intentionally survives sessions.
     func reset() {
         phase = .recognizing
         segments = []
@@ -81,23 +50,6 @@ final class ScreenshotDockState: NSObject, ObservableObject {
         overlayWidth = ScreenshotDockLayout.defaultOverlayWidth
         highlightedRect = nil
         panelFocused = false
-        scaleBadge = nil
-    }
-
-    // MARK: Private
-
-    private var scaleBadgeTask: Task<(), Never>?
-
-    private func showScaleBadge() {
-        scaleBadge = "\(Int((fontScale * 100).rounded()))%"
-        scaleBadgeTask?.cancel()
-        scaleBadgeTask = Task {
-            try? await Task.sleep(nanoseconds: 1_400_000_000)
-            guard !Task.isCancelled else { return }
-            await MainActor.run {
-                scaleBadge = nil
-            }
-        }
     }
 }
 
@@ -117,13 +69,12 @@ struct ScreenshotDockView: View {
             VStack(alignment: .leading, spacing: 0) {
                 switch state.phase {
                 case .recognizing:
-                    LoadingRow(textKey: "screenshot_dock_recognizing", fontScale: state.fontScale)
+                    LoadingRow(textKey: "screenshot_dock_recognizing")
                         .padding(12)
                 case .failed, .result, .translating:
                     ForEach(state.segments) { segment in
                         SegmentCard(
                             segment: segment,
-                            fontScale: state.fontScale,
                             isHovered: hoveredSegmentID == segment.id,
                             onHover: { hovering in
                                 hoveredSegmentID = hovering ? segment.id : nil
@@ -132,7 +83,7 @@ struct ScreenshotDockView: View {
                         )
                     }
                     if state.phase == .translating {
-                        LoadingRow(textKey: "screenshot_dock_translating", fontScale: state.fontScale)
+                        LoadingRow(textKey: "screenshot_dock_translating")
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
                     }
@@ -159,24 +110,12 @@ struct ScreenshotDockView: View {
                     state.onCloseRequest?()
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 16 * state.fontScale))
+                        .font(.system(size: 16))
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
                 .padding(6)
                 .help("close")
-            }
-        }
-        .overlay(alignment: .top) {
-            if let badge = state.scaleBadge {
-                Text(badge)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Capsule().fill(Color.black.opacity(0.65)))
-                    .padding(.top, 6)
-                    .transition(.opacity)
             }
         }
     }
@@ -204,9 +143,9 @@ struct ScreenshotDockView: View {
 
 /// One aligned paragraph: numbered source snippet on top, translation below.
 /// An accent bar on the leading edge makes the paragraph rhythm scannable.
+/// Font sizes are fixed constants — deliberately not user-scalable.
 private struct SegmentCard: View {
     let segment: DockSegment
-    let fontScale: CGFloat
     let isHovered: Bool
     let onHover: (Bool) -> ()
 
@@ -214,18 +153,18 @@ private struct SegmentCard: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .top, spacing: 6) {
                 Text("\(segment.id)")
-                    .font(.system(size: 11 * fontScale, weight: .bold, design: .rounded))
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
-                    .frame(width: 17 * fontScale, height: 17 * fontScale)
+                    .frame(width: 17, height: 17)
                     .background(Circle().fill(Color.accentColor.opacity(0.75)))
                 Text(segment.source)
-                    .font(.system(size: 15 * fontScale))
+                    .font(.system(size: 12.5))
                     .foregroundStyle(.primary.opacity(0.85))
                     .textSelection(.enabled)
             }
             if let translation = segment.translation, !translation.isEmpty {
                 Text(translation)
-                    .font(.system(size: 16.5 * fontScale))
+                    .font(.system(size: 14))
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -254,14 +193,13 @@ private struct SegmentCard: View {
 /// LocalizedStringKey explicitly — Text(String) renders verbatim.
 private struct LoadingRow: View {
     let textKey: String
-    let fontScale: CGFloat
 
     var body: some View {
         HStack(spacing: 8) {
             ProgressView()
                 .controlSize(.small)
             Text(LocalizedStringKey(textKey))
-                .font(.system(size: 14.5 * fontScale))
+                .font(.system(size: 13))
                 .foregroundStyle(.secondary)
         }
     }
