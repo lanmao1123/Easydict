@@ -30,6 +30,14 @@ struct ServiceTab: View {
                     .listStyle(.plain)
                     .scrollIndicators(.never)
                     .borderedCard()
+                    .overlay(alignment: .bottom) {
+                        Text("service_tab_fallback_note")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 6)
+                            .background(Color(nsColor: .windowBackgroundColor))
+                    }
                     .onReceive(serviceHasUpdatedNotification) { _ in
                         viewModel.updateServices()
                     }
@@ -191,7 +199,7 @@ class ServiceTabViewModel: ObservableObject {
     /// service and Zhipu (user's own free GLM key, bypassing the shared
     /// built-in quota) survive — dropped services must never survive a
     /// settings visit.
-    private static let allowedServiceTypes: [ServiceType] = [.builtInAI, .zhipu, .claudeCode]
+    private static let allowedServiceTypes: [ServiceType] = [.builtInAI, .zhipu, .claudeCode, .apple]
 
     private var selectedItem: ServiceTabSelection?
 
