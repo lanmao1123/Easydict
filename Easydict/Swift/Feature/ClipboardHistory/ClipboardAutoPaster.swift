@@ -29,6 +29,15 @@ enum ClipboardAutoPaster {
     static func pasteToActiveApp(after delay: TimeInterval = 0.12) {
         guard isAccessibilityGranted else {
             logInfo("[Clipboard] Auto-paste skipped, accessibility permission missing")
+            // A silent skip reads as "the feature is broken" — surface the
+            // real reason and raise the one-time system prompt so the app
+            // appears in the Accessibility list with an enable shortcut.
+            EZToast.showText(
+                NSLocalizedString("clipboard_autopaste_needs_accessibility", comment: "")
+            )
+            let prompt = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
+                as CFDictionary
+            _ = AXIsProcessTrustedWithOptions(prompt)
             return
         }
 
