@@ -81,6 +81,7 @@ excluded:
   - "**/.build/**" # Exclude all .build subdirectories
   - "**/checkouts/**" # Exclude all SPM downloaded dependencies
   - "**/DerivedData/**" # Exclude Xcode derived data
+  - "build2" # Local incremental-build DerivedData used for debug deployment
   - "**/SherpaOnnx.swift"
   # Ported macshot capture engine: upstream code intentionally kept verbatim,
   # its file/type/function sizes exceed this repo's style thresholds.
