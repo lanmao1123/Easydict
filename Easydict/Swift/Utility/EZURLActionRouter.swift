@@ -51,7 +51,7 @@ final class EZURLActionRouter: NSObject {
     #if DEBUG
     /// Debug-only actions used by headless verification scripts.
     private static let debugActions: Set<String> = [
-        "debug-pinch", "debug-dock-translate",
+        "debug-pinch", "debug-dock-translate", "debug-pronunciation",
     ]
     #endif
 
@@ -95,6 +95,10 @@ final class EZURLActionRouter: NSObject {
     private static func handleDebugAction(_ action: String) {
         if action == "debug-dock-translate" {
             ScreenshotDockManager.shared.debugTranslate()
+            return
+        }
+        if action == "debug-pronunciation" {
+            ScreenshotDockManager.shared.debugPronunciation()
             return
         }
         guard action == "debug-pinch" else { return }

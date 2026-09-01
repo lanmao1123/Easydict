@@ -21,6 +21,14 @@ struct DockSegment: Identifiable, Equatable {
     /// the original pixels. Nil when geometry is unavailable.
     let highlightRect: CGRect?
     var translation: String?
+    /// Short non-Chinese source (<10 words): the card shows a pronunciation
+    /// toggle; long sentences never need one. Set after language detection.
+    var pronunciationEligible: Bool = false
+    /// Chinese-character phonetic rendering of the English source ("克劳德"),
+    /// lazily fetched from the AI fallback chain on first reveal.
+    var pronunciation: String?
+    var pronunciationLoading: Bool = false
+    var showPronunciation: Bool = false
 }
 
 // MARK: - ScreenshotDockLayout

@@ -59,10 +59,12 @@ final class ScreenshotDockManager: NSObject {
     #if DEBUG
     /// Headless regression: drives the real translation pipeline (service
     /// pick, batched numbered-line request, parsing, state backfill) with
-    /// synthetic paragraphs — no screen capture permission required.
+    /// synthetic paragraphs — no screen capture permission required. The
+    /// first two sources are short words so the pronunciation toggle shows.
     func debugTranslate() {
         let sources = [
-            "The quick brown fox jumps over the lazy dog near the river bank.",
+            "Claude",
+            "goroutine scheduling",
             "Artificial intelligence has transformed how people work and learn.",
             "Sunset paints the sky in orange and purple while birds fly home.",
         ]
@@ -72,6 +74,7 @@ final class ScreenshotDockManager: NSObject {
         state.segments = sources.enumerated().map { index, source in
             DockSegment(id: index + 1, source: source, highlightRect: nil, translation: nil)
         }
+        refreshPronunciationEligibility(sourceLanguage: .english)
         state.phase = .translating
         showPanel()
         translateTask = Task {
@@ -81,7 +84,23 @@ final class ScreenshotDockManager: NSObject {
                 return
             }
             try? await translateSegments(sources, services: services, sourceLanguage: .english)
-            logInfo("debug-dock-translate finished, translated=\(state.segments.compactMap { $0.translation }.count)/3")
+            logInfo(
+                "debug-dock-translate finished, translated=\(state.segments.compactMap { $0.translation }.count)/\(sources.count)"
+            )
+        }
+    }
+
+    /// Headless check of the pronunciation fallback chain: fetches the
+    /// phonetic rendering of a fixed tech term and logs the result.
+    func debugPronunciation() {
+        Task {
+            do {
+                let result = try await PronunciationHelper.shared
+                    .fetchPronunciation(for: "goroutine")
+                logInfo("debug-pronunciation result: \(result)")
+            } catch {
+                logWarn("debug-pronunciation failed: \(error.localizedDescription)")
+            }
         }
     }
     #endif
@@ -180,6 +199,7 @@ final class ScreenshotDockManager: NSObject {
                     finishFailure(error.localizedDescription)
                     return
                 }
+                refreshPronunciationEligibility(sourceLanguage: sourceLanguage)
 
                 try await translateSegments(
                     segments.map { $0.source },
@@ -310,6 +330,57 @@ final class ScreenshotDockManager: NSObject {
         refreshLayout()
     }
 
+    // MARK: Pronunciation
+
+    /// Pronunciation ("克劳德" for Claude) only makes sense for short
+    /// non-Chinese sources; long sentences are never eligible.
+    private func refreshPronunciationEligibility(sourceLanguage: Language) {
+        for index in state.segments.indices {
+            let words = state.segments[index].source
+                .split(whereSeparator: \.isWhitespace).count
+            state.segments[index].pronunciationEligible =
+                !sourceLanguage.isChinese && words > 0 && words < 10
+        }
+    }
+
+    /// Handles a card's pronunciation toggle: first tap fetches the phonetic
+    /// rendering through the AI fallback chain and reveals it; later taps
+    /// just show/hide the cached result. `index` is a segment array index.
+    private func requestPronunciation(index: Int) {
+        guard state.segments.indices.contains(index) else { return }
+
+        if state.segments[index].pronunciation != nil {
+            state.segments[index].showPronunciation.toggle()
+            refreshLayout()
+            return
+        }
+        guard !state.segments[index].pronunciationLoading else { return }
+
+        let source = state.segments[index].source
+        state.segments[index].pronunciationLoading = true
+        refreshLayout()
+
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let pronunciation = try await PronunciationHelper.shared
+                    .fetchPronunciation(for: source)
+                guard state.segments.indices.contains(index) else { return }
+                state.segments[index].pronunciation = pronunciation
+                state.segments[index].pronunciationLoading = false
+                state.segments[index].showPronunciation = true
+            } catch {
+                guard state.segments.indices.contains(index) else { return }
+                state.segments[index].pronunciationLoading = false
+                logWarn("[Pronunciation] fetch failed, index=\(index): \(error.localizedDescription)")
+                EZToast.showText(
+                    NSLocalizedString("screenshot_dock_pronunciation_failed", comment: "")
+                )
+            }
+            refreshLayout()
+        }
+    }
+
     /// Converts a paragraph's global rect into the highlight window's local
     /// space (selection-covering, top-left origin, as SwiftUI expects).
     private func highlightLocalRect(_ screenRect: CGRect) -> CGRect {
@@ -344,6 +415,9 @@ final class ScreenshotDockManager: NSObject {
         teardownPanelOnly()
         state.onCloseRequest = { [weak self] in
             self?.dismiss()
+        }
+        state.onPronunciationRequest = { [weak self] index in
+            self?.requestPronunciation(index: index)
         }
         let newPanel = ScreenshotDockPanel(state: state)
         panel = newPanel

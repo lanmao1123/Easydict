@@ -461,6 +461,7 @@
 		03D5C4CC2DA21EAD0054D0D4 /* MetadataExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03D5C4CB2DA21EAD0054D0D4 /* MetadataExtractor.swift */; };
 		03D90BC62E22A4A2005C1BBB /* ocr-pl-text-1.png in Resources */ = {isa = PBXBuildFile; fileRef = 03D90BC52E22A4A2005C1BBB /* ocr-pl-text-1.png */; };
 		0D0C4B0000000000000000A1 /* ScreenshotDockLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000B1 /* ScreenshotDockLayout.swift */; };
+		0D0C4B00000000000000D2 /* PronunciationHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B00000000000000D1 /* PronunciationHelper.swift */; };
 		0D0C4B0000000000000000A2 /* ScreenshotDockManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000B2 /* ScreenshotDockManager.swift */; };
 		0D0C4B0000000000000000A3 /* ScreenshotDockPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000B3 /* ScreenshotDockPanel.swift */; };
 		0D0C4B0000000000000000A4 /* ScreenshotDockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000B4 /* ScreenshotDockView.swift */; };
@@ -1253,6 +1254,7 @@
 		03D5C4CB2DA21EAD0054D0D4 /* MetadataExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetadataExtractor.swift; sourceTree = "<group>"; };
 		03D90BC52E22A4A2005C1BBB /* ocr-pl-text-1.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "ocr-pl-text-1.png"; sourceTree = "<group>"; };
 		0D0C4B0000000000000000B1 /* ScreenshotDockLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotDockLayout.swift; sourceTree = "<group>"; };
+		0D0C4B00000000000000D1 /* PronunciationHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PronunciationHelper.swift; sourceTree = "<group>"; };
 		0D0C4B0000000000000000B2 /* ScreenshotDockManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotDockManager.swift; sourceTree = "<group>"; };
 		0D0C4B0000000000000000B3 /* ScreenshotDockPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotDockPanel.swift; sourceTree = "<group>"; };
 		0D0C4B0000000000000000B4 /* ScreenshotDockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotDockView.swift; sourceTree = "<group>"; };
@@ -2055,6 +2057,7 @@
 			isa = PBXGroup;
 			children = (
 				0D0C4B0000000000000000B1 /* ScreenshotDockLayout.swift */,
+				0D0C4B00000000000000D1 /* PronunciationHelper.swift */,
 				0D0C4B0000000000000000B2 /* ScreenshotDockManager.swift */,
 				0D0C4B0000000000000000B3 /* ScreenshotDockPanel.swift */,
 				0D0C4B0000000000000000B4 /* ScreenshotDockView.swift */,
@@ -4668,6 +4671,7 @@
 				03F086F22DB1F5F000268DF0 /* SliderCell.swift in Sources */,
 				03D486502E3F2021009313B3 /* Regex+List.swift in Sources */,
 				0D0C4B0000000000000000A1 /* ScreenshotDockLayout.swift in Sources */,
+				0D0C4B00000000000000D2 /* PronunciationHelper.swift in Sources */,
 				0D0C4B0000000000000000A2 /* ScreenshotDockManager.swift in Sources */,
 				0D0C4B0000000000000000A3 /* ScreenshotDockPanel.swift in Sources */,
 				0D0C4B0000000000000000A4 /* ScreenshotDockView.swift in Sources */,

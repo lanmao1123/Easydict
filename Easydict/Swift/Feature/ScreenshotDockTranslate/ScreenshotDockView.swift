@@ -38,6 +38,10 @@ final class ScreenshotDockState: NSObject, ObservableObject {
     /// Invoked when the user closes the pinned panel (close button or ESC).
     var onCloseRequest: (() -> ())?
 
+    /// Invoked when the user toggles a card's pronunciation control; the
+    /// payload is the segment's array index. The manager owns the AI request.
+    var onPronunciationRequest: ((Int) -> ())?
+
     /// True while the panel is the key window (user clicked it), enabling
     /// ESC-to-close and ⌘C-to-copy like an image pin.
     @Published var panelFocused = false
@@ -79,6 +83,9 @@ struct ScreenshotDockView: View {
                             onHover: { hovering in
                                 hoveredSegmentID = hovering ? segment.id : nil
                                 state.highlightedRect = hovering ? segment.highlightRect : nil
+                            },
+                            onPronunciationToggle: {
+                                state.onPronunciationRequest?(segment.id - 1)
                             }
                         )
                     }
@@ -143,11 +150,16 @@ struct ScreenshotDockView: View {
 
 /// One aligned paragraph: numbered source snippet on top, translation below.
 /// An accent bar on the leading edge makes the paragraph rhythm scannable.
-/// Font sizes are fixed constants — deliberately not user-scalable.
+/// Short non-Chinese sources show a "读法" toggle that reveals the
+/// Chinese-character phonetic rendering of the English text. Font sizes are
+/// fixed constants — deliberately not user-scalable.
 private struct SegmentCard: View {
+    // MARK: Internal
+
     let segment: DockSegment
     let isHovered: Bool
     let onHover: (Bool) -> ()
+    let onPronunciationToggle: () -> ()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -163,10 +175,37 @@ private struct SegmentCard: View {
                     .textSelection(.enabled)
             }
             if let translation = segment.translation, !translation.isEmpty {
-                Text(translation)
-                    .font(.system(size: 14))
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
+                HStack(alignment: .top) {
+                    Text(translation)
+                        .font(.system(size: 14))
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if segment.pronunciationEligible {
+                        Spacer(minLength: 8)
+                        HStack(spacing: 5) {
+                            speakButton
+                            pronunciationButton
+                        }
+                    }
+                }
+                if segment.showPronunciation,
+                   let pronunciation = segment.pronunciation, !pronunciation.isEmpty {
+                    HStack(alignment: .firstTextBaseline, spacing: 5) {
+                        Text(String(localized: "screenshot_dock_pronunciation_button"))
+                            .font(.system(size: 11, weight: .semibold))
+                        Text(pronunciation)
+                            .font(.system(size: 14, weight: .medium))
+                            .textSelection(.enabled)
+                        if let pinyin = pronunciation.chinesePinyin {
+                            Text("(\(pinyin))")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                                .textSelection(.enabled)
+                        }
+                    }
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.leading, 2)
+                }
             }
         }
         .padding(.horizontal, 12)
@@ -183,6 +222,73 @@ private struct SegmentCard: View {
         }
         .contentShape(Rectangle())
         .onHover(perform: onHover)
+    }
+
+    // MARK: Private
+
+    /// Speaker capsule: reads the English source aloud with the local
+    /// system voice — works without expanding the phonetic row.
+    @ViewBuilder
+    private var speakButton: some View {
+        Button {
+            PronunciationSpeaker.speak(segment.source)
+        } label: {
+            Image(systemName: "speaker.wave.2.fill")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 5)
+                .background(Capsule().fill(Color.accentColor.opacity(0.5)))
+        }
+        .buttonStyle(.plain)
+        .help("speak")
+    }
+
+    /// Capsule toggle next to the translation: tap once to fetch + reveal the
+    /// phonetic rendering, then tap again to hide/show the cached result.
+    @ViewBuilder
+    private var pronunciationButton: some View {
+        Button(action: onPronunciationToggle) {
+            if segment.pronunciationLoading {
+                ProgressView()
+                    .controlSize(.mini)
+                    .frame(width: 34, height: 16)
+            } else {
+                Text(String(localized: "screenshot_dock_pronunciation_button"))
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(
+                        Capsule().fill(
+                            Color.accentColor.opacity(segment.showPronunciation ? 0.9 : 0.5)
+                        )
+                    )
+            }
+        }
+        .buttonStyle(.plain)
+        .help("pronunciation")
+    }
+}
+
+// MARK: - Pinyin
+
+/// Local pinyin support for the pronunciation row: the phonetic rendering
+/// sometimes contains rare characters (呙、汀) the user cannot read either.
+extension String {
+    /// Mandarin pinyin with tone marks for the Chinese characters in the
+    /// string ("呙入汀" → "guō rù tīng"); nil when there are none.
+    fileprivate var chinesePinyin: String? {
+        guard contains(where: { $0.isChineseCharacter }) else { return nil }
+        let mutable = NSMutableString(string: self) as CFMutableString
+        CFStringTransform(mutable, nil, kCFStringTransformToLatin, false)
+        return mutable as String
+    }
+}
+
+extension Character {
+    fileprivate var isChineseCharacter: Bool {
+        unicodeScalars.allSatisfy { $0.properties.isIdeographic }
     }
 }
 
