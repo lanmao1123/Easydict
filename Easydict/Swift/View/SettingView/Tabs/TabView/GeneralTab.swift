@@ -16,34 +16,11 @@ import SwiftUI
 struct GeneralTab: View {
     // MARK: Internal
 
-    class CheckUpdaterViewModel: ObservableObject {
-        // MARK: Lifecycle
-
-        init() {
-            updater
-                .publisher(for: \.automaticallyChecksForUpdates)
-                .assign(to: &$autoChecksForUpdates)
-        }
-
-        // MARK: Internal
-
-        @Published var autoChecksForUpdates = true {
-            didSet {
-                updater.automaticallyChecksForUpdates = autoChecksForUpdates
-            }
-        }
-
-        // MARK: Private
-
-        private let updater = MyConfiguration.shared.updater
-    }
-
     @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
         Form {
             Section {
-                FirstAndSecondLanguageSettingView()
                 Picker(
                     "setting.general.language.language_detect_optimize",
                     selection: $languageDetectOptimize
@@ -71,49 +48,6 @@ struct GeneralTab: View {
                         Text(option.title)
                             .tag(option)
                     }
-                }
-
-                // Check for updates
-                HStack {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("check_for_updates")
-                        Text("lastest_version \(lastestVersion ?? version)")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                    Spacer()
-                    Button("check_now") {
-                        MyConfiguration.shared.updater.checkForUpdates()
-                    }
-                }
-
-                Toggle(isOn: $checkUpdaterViewModel.autoChecksForUpdates) {
-                    Text("auto_check_update ")
-                }
-
-                HStack {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("setting.general.startup_and_update.include_beta")
-                        Text("setting.general.startup_and_update.include_beta.description")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                    Spacer()
-                    Toggle(
-                        isOn: $includeBetaUpdates.didSet(execute: { state in
-                            logSettings(["include_beta_updates": state])
-                            if state {
-                                MyConfiguration.shared.updater.checkForUpdates()
-                            }
-                        })
-                    ) {
-                        EmptyView()
-                    }
-                    .labelsHidden()
-                }
-
-                Toggle(isOn: $enableBetaFeature) {
-                    Text("setting.advance.enable_beta_feature")
                 }
 
                 LaunchAtLogin.Toggle {
@@ -170,9 +104,6 @@ struct GeneralTab: View {
             }
         }
         .formStyle(.grouped)
-        .task {
-            lastestVersion = await fetchRepoLatestVersion(EZGithubRepoEasydict)
-        }
         .alert("hide_menu_bar_icon", isPresented: $showRefuseAlert) {
             Button("ok") {
                 showRefuseAlert = false
@@ -201,13 +132,8 @@ struct GeneralTab: View {
     @State private var showRefuseAlert = false
     @State private var showHideMenuBarIconAlert = false
 
-    @StateObject private var checkUpdaterViewModel = CheckUpdaterViewModel()
-
-    @State private var lastestVersion: String?
-
     // Query language
     @Default(.languageDetectOptimize) private var languageDetectOptimize
-    @Default(.enableBetaFeature) private var enableBetaFeature
 
     // Auto copy
 
@@ -216,13 +142,7 @@ struct GeneralTab: View {
     @Default(.selectedMenuBarIcon) private var selectedMenuBarIcon
     @Default(.enableMarkdownRendering) private var enableMarkdownRendering
 
-    @Default(.includeBetaUpdates) private var includeBetaUpdates
-
     // MARK: Raycast Integration
-
-    private var version: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
-    }
 
     private var shortcutsHaveSetuped: Bool {
         // The translate shortcuts were removed with the feature strip; the
@@ -240,103 +160,4 @@ struct GeneralTab: View {
 
 #Preview {
     GeneralTab()
-}
-
-// MARK: - FirstAndSecondLanguageSettingView
-
-private struct FirstAndSecondLanguageSettingView: View {
-    // MARK: Internal
-
-    var body: some View {
-        Group {
-            Picker("setting.general.language.first_language", selection: $firstLanguage) {
-                ForEach(Language.allAvailableOptions, id: \.rawValue) { option in
-                    Text(verbatim: "\(option.flagEmoji) \(option.localizedName)")
-                        .tag(option)
-                }
-            }
-            Picker("setting.general.language.second_language", selection: $secondLanguage) {
-                ForEach(Language.allAvailableOptions, id: \.rawValue) { option in
-                    Text(verbatim: "\(option.flagEmoji) \(option.localizedName)")
-                        .tag(option)
-                }
-            }
-        }
-        .onChange(of: firstLanguage) { [firstLanguage] newValue in
-            let oldValue = firstLanguage
-            if newValue == secondLanguage {
-                secondLanguage = oldValue
-                languageDuplicatedAlert = .init(
-                    duplicatedLanguage: newValue, setField: .second, setLanguage: oldValue
-                )
-            }
-        }
-        .onChange(of: secondLanguage) { [secondLanguage] newValue in
-            let oldValue = secondLanguage
-            if newValue == firstLanguage {
-                firstLanguage = oldValue
-                languageDuplicatedAlert = .init(
-                    duplicatedLanguage: newValue, setField: .first, setLanguage: oldValue
-                )
-            }
-        }
-        .alert(
-            "setting.general.language.duplicated_alert.title",
-            isPresented: showLanguageDuplicatedAlert,
-            presenting: languageDuplicatedAlert
-        ) { _ in
-        } message: { alert in
-            Text(alert.description)
-        }
-    }
-
-    // MARK: Private
-
-    private struct LanguageDuplicateAlert: CustomStringConvertible {
-        enum Field: CustomLocalizedStringResourceConvertible {
-            case first
-            case second
-
-            // MARK: Internal
-
-            var localizedStringResource: LocalizedStringResource {
-                switch self {
-                case .first:
-                    "setting.general.language.duplicated_alert.field.first"
-                case .second:
-                    "setting.general.language.duplicated_alert.field.second"
-                }
-            }
-        }
-
-        let duplicatedLanguage: Language
-
-        let setField: Field
-
-        let setLanguage: Language
-
-        var description: String {
-            // First language should not be same as second language. (\(duplicatedLanguage))
-            // \(setField) is replaced with \(setLanguage).
-            String(
-                localized:
-                "setting.general.language.duplicated_alert \(duplicatedLanguage.localizedName)\(String(localized: setField.localizedStringResource))\(setLanguage.localizedName)"
-            )
-        }
-    }
-
-    @State private var languageDuplicatedAlert: LanguageDuplicateAlert?
-
-    @Default(.firstLanguage) private var firstLanguage
-    @Default(.secondLanguage) private var secondLanguage
-
-    private var showLanguageDuplicatedAlert: Binding<Bool> {
-        .init {
-            languageDuplicatedAlert != nil
-        } set: { newValue in
-            if !newValue {
-                languageDuplicatedAlert = nil
-            }
-        }
-    }
 }
