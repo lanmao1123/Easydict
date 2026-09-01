@@ -71,6 +71,7 @@ final class ClipboardPanel: NSPanel {
     func present() {
         positionOnScreen()
         viewModel.load()
+        viewModel.selectNewest()
         makeKeyAndOrderFront(nil)
         installKeyMonitorIfNeeded()
         logInfo("panel presented, visible=\(isVisible), occlusion=\(occlusionState.rawValue)")

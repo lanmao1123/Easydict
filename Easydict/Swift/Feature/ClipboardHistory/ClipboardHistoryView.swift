@@ -110,6 +110,13 @@ final class ClipboardHistoryViewModel: ObservableObject {
         }
     }
 
+    /// Every fresh panel opening lands on the newest entry — the panel and
+    /// its view model are reused, so a stale selectedID from the previous
+    /// session would otherwise survive `load()` and hide the newest copy.
+    func selectNewest() {
+        selectedID = entries.first?.id
+    }
+
     func moveSelection(_ direction: ClipboardMoveDirection) {
         guard !entries.isEmpty else { return }
         guard let index = entries.firstIndex(where: { $0.id == selectedID }) else {

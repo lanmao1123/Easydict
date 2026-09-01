@@ -15,6 +15,8 @@ import ApplicationServices
 /// is written back, Raycast-style. Posting CGEvents requires the Accessibility
 /// permission; without it the call degrades to "copy only" and logging says so.
 enum ClipboardAutoPaster {
+    // MARK: Internal
+
     static var isAccessibilityGranted: Bool {
         AXIsProcessTrusted()
     }
@@ -24,9 +26,12 @@ enum ClipboardAutoPaster {
         NSWorkspace.shared.open(url)
     }
 
-    /// Posts ⌘V down/up to the hid tap after `delay`, giving the previous app
-    /// time to become active again once the history panel closes.
-    static func pasteToActiveApp(after delay: TimeInterval = 0.12) {
+    /// Pastes into `previousApp` — the app that was frontmost before the
+    /// history panel opened. Activation handoff is asynchronous and can be
+    /// silently refused under cooperative activation, so the keystroke is
+    /// only posted once the target app is verified frontmost; a refused
+    /// attempt is retried, with an AppleScript activation as last resort.
+    static func paste(to previousApp: NSRunningApplication?) {
         guard isAccessibilityGranted else {
             logInfo("[Clipboard] Auto-paste skipped, accessibility permission missing")
             // A silent skip reads as "the feature is broken" — surface the
@@ -41,17 +46,81 @@ enum ClipboardAutoPaster {
             return
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-            guard let source = CGEventSource(stateID: .hidSystemState) else { return }
+        guard let previousApp else {
+            // Unknown origin: paste into whatever is frontmost right now.
+            postPasteKeystroke()
+            return
+        }
 
-            let vKeyCode: CGKeyCode = 9 // kVK_ANSI_V
-            let down = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: true)
-            let up = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: false)
-            down?.flags = .maskCommand
-            up?.flags = .maskCommand
-            down?.post(tap: .cghidEventTap)
-            up?.post(tap: .cghidEventTap)
-            logInfo("[Clipboard] Auto-paste keystroke posted")
+        Task { @MainActor in
+            previousApp.activate()
+            if await waitUntilFrontmost(previousApp, timeout: 0.5) {
+                postPasteKeystroke()
+                return
+            }
+
+            previousApp.activate()
+            if await waitUntilFrontmost(previousApp, timeout: 0.5) {
+                postPasteKeystroke()
+                return
+            }
+
+            activateViaAppleScript(previousApp)
+            if await waitUntilFrontmost(previousApp, timeout: 0.8) {
+                postPasteKeystroke()
+                return
+            }
+
+            // Could not verify the handoff; paste anyway, best effort.
+            logWarn("[Clipboard] Frontmost handoff unverified, posting paste anyway")
+            postPasteKeystroke()
+        }
+    }
+
+    // MARK: Private
+
+    /// Posts ⌘V down/up to the hid tap.
+    private static func postPasteKeystroke() {
+        guard let source = CGEventSource(stateID: .hidSystemState) else { return }
+
+        let vKeyCode: CGKeyCode = 9 // kVK_ANSI_V
+        let down = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: true)
+        let up = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: false)
+        down?.flags = .maskCommand
+        up?.flags = .maskCommand
+        down?.post(tap: .cghidEventTap)
+        up?.post(tap: .cghidEventTap)
+        logInfo("[Clipboard] Auto-paste keystroke posted")
+    }
+
+    private static func waitUntilFrontmost(
+        _ app: NSRunningApplication, timeout: TimeInterval
+    ) async
+        -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if NSWorkspace.shared.frontmostApplication == app { return true }
+            try? await Task.sleep(nanoseconds: 40_000_000)
+        }
+        return NSWorkspace.shared.frontmostApplication == app
+    }
+
+    /// Cooperative activation can silently refuse the handoff; the Apple
+    /// Events activation does not, at the cost of a one-time automation
+    /// permission prompt for the target app.
+    private static func activateViaAppleScript(_ app: NSRunningApplication) {
+        guard let bundleID = app.bundleIdentifier else { return }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        process.arguments = [
+            "-e", "tell application id \"\(bundleID)\" to activate",
+        ]
+        do {
+            try process.run()
+            process.waitUntilExit()
+            logInfo("[Clipboard] AppleScript activation exit=\(process.terminationStatus)")
+        } catch {
+            logWarn("[Clipboard] AppleScript activation failed: \(error.localizedDescription)")
         }
     }
 

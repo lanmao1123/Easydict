@@ -65,7 +65,10 @@ final class EZURLActionRouter: NSObject {
             ScreenshotDockManager.shared.start()
 
         case "clipboard-history":
-            ClipboardManager.shared.togglePanel()
+            // URL entries (Raycast Quicklink) race the system activation:
+            // by delivery time this app is already frontmost, so the paste
+            // target must be captured from the handoff window instead.
+            ClipboardManager.shared.openPanelFromURL()
 
         case "ocr":
             // Silent OCR: recognize in the background and copy the text

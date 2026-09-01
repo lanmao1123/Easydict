@@ -41,6 +41,26 @@ final class ClipboardManager: NSObject {
             return
         }
 
+        previousApp = Self.currentPasteTarget()
+        showPanel()
+    }
+
+    /// URL entries (Raycast Quicklink etc.) arrive after the system has
+    /// already activated this app, so the frontmost at showPanel time is
+    /// ourselves and the activation moment is impossible to observe from
+    /// inside. The paste target is instead read off the window stack: the
+    /// app the user just worked in owns the topmost foreign windows, right
+    /// beneath ours. Only .regular apps qualify — launchers like Raycast
+    /// (.accessory) and helpers never become the paste destination.
+    func openPanelFromURL() {
+        previousApp = Self.captureRegularAppUnderOurs()
+        if let previousApp {
+            logInfo(
+                "[Clipboard] URL source app captured, bundle=\(previousApp.bundleIdentifier ?? "?")"
+            )
+        } else {
+            logWarn("[Clipboard] URL source app not captured, auto-paste target unresolved")
+        }
         showPanel()
     }
 
@@ -52,7 +72,6 @@ final class ClipboardManager: NSObject {
             panel = ClipboardPanel()
         }
 
-        previousApp = NSWorkspace.shared.frontmostApplication
         observeDeactivation()
         panel?.present()
         NSApp.activate(ignoringOtherApps: true)
@@ -77,8 +96,12 @@ final class ClipboardManager: NSObject {
 
         if let previousApp {
             previousApp.activate()
+        } else {
+            logWarn("[Clipboard] No captured source app, pasting into current frontmost")
         }
-        ClipboardAutoPaster.pasteToActiveApp()
+        // The paster verifies the frontmost handoff itself before typing;
+        // this first activate() is just the fastest head start.
+        ClipboardAutoPaster.paste(to: previousApp)
     }
 
     @discardableResult
@@ -123,6 +146,34 @@ final class ClipboardManager: NSObject {
     /// clipboard panel with it. NSPanel.hidesOnDeactivate proved unreliable
     /// for this nonactivating panel, so the resignation is observed directly.
     private var deactivateObserver: (any NSObjectProtocol)?
+
+    /// The frontmost app to paste into, unless that is this app itself —
+    /// by the time a URL activation lands, the frontmost is already us.
+    private static func currentPasteTarget() -> NSRunningApplication? {
+        let front = NSWorkspace.shared.frontmostApplication
+        guard front != NSRunningApplication.current else { return nil }
+        return front
+    }
+
+    /// Topmost foreign on-screen window whose owner is a regular app — the
+    /// user's current working app in the window stack right beneath ours.
+    private static func captureRegularAppUnderOurs() -> NSRunningApplication? {
+        guard let list = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID
+        ) as? [[String: Any]]
+        else { return nil }
+
+        let selfPID = ProcessInfo.processInfo.processIdentifier
+        for window in list {
+            guard let pid = window[kCGWindowOwnerPID as String] as? Int32,
+                  pid != selfPID,
+                  let app = NSRunningApplication(processIdentifier: pid),
+                  app.activationPolicy == .regular
+            else { continue }
+            return app
+        }
+        return nil
+    }
 
     /// Last deliberate show, used to turn a quick re-trigger into a close.
     private func observeDeactivation() {
