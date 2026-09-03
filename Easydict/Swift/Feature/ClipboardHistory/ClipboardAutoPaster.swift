@@ -55,29 +55,41 @@ enum ClipboardAutoPaster {
         Task { @MainActor in
             previousApp.activate()
             if await waitUntilFrontmost(previousApp, timeout: 0.5) {
+                await settleBeforePaste()
                 postPasteKeystroke()
                 return
             }
 
             previousApp.activate()
             if await waitUntilFrontmost(previousApp, timeout: 0.5) {
+                await settleBeforePaste()
                 postPasteKeystroke()
                 return
             }
 
             activateViaAppleScript(previousApp)
             if await waitUntilFrontmost(previousApp, timeout: 0.8) {
+                await settleBeforePaste()
                 postPasteKeystroke()
                 return
             }
 
             // Could not verify the handoff; paste anyway, best effort.
             logWarn("[Clipboard] Frontmost handoff unverified, posting paste anyway")
+            await settleBeforePaste()
             postPasteKeystroke()
         }
     }
 
     // MARK: Private
+
+    /// The frontmost flag flips before the target app has actually restored
+    /// its key window and first responder — logs showed the keystroke landing
+    /// 15ms after select, inside the window-switch animation, where Chrome
+    /// simply dropped it. A short settle delay lets the focus come back.
+    private static func settleBeforePaste() async {
+        try? await Task.sleep(nanoseconds: 220_000_000)
+    }
 
     /// Posts ⌘V down/up to the hid tap.
     private static func postPasteKeystroke() {

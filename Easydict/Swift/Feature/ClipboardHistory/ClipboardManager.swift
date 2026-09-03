@@ -89,7 +89,9 @@ final class ClipboardManager: NSObject {
     /// Enter on an entry: write it back, close, reactivate the previous app,
     /// then auto-paste when the accessibility permission allows.
     func select(_ entry: ClipboardEntry) {
-        logInfo("select entry, id=\(entry.id), kind=\(entry.kind.rawValue)")
+        logInfo(
+            "select entry, id=\(entry.id), kind=\(entry.kind.rawValue), target=\(previousApp?.bundleIdentifier ?? "nil")"
+        )
         writeBack(entry)
         ClipboardMonitor.shared.suppressNextChange()
         hidePanel()
@@ -139,7 +141,11 @@ final class ClipboardManager: NSObject {
 
     private var panel: ClipboardPanel?
 
-    private weak var previousApp: NSRunningApplication?
+    /// Strong on purpose: a weak reference released the URL-path capture —
+    /// NSRunningApplication(processIdentifier:) hands back a wrapper that is
+    /// not strongly held, so the target silently became nil between panel
+    /// open and select, and the paste took the no-target fast path.
+    private var previousApp: NSRunningApplication?
 
     /// Hides the panel when Easydict loses focus — the "states stay in sync"
     /// contract: collapsing Raycast (or clicking anywhere else) collapses the
@@ -167,7 +173,12 @@ final class ClipboardManager: NSObject {
         for window in list {
             guard let pid = window[kCGWindowOwnerPID as String] as? Int32,
                   pid != selfPID,
-                  let app = NSRunningApplication(processIdentifier: pid),
+                  // Resolve through the workspace's shared instance table —
+                  // NSRunningApplication(processIdentifier:) wrappers are not
+                  // strongly held and die before the panel is used.
+                  let app = NSWorkspace.shared.runningApplications.first(where: {
+                      $0.processIdentifier == pid
+                  }),
                   app.activationPolicy == .regular
             else { continue }
             return app
