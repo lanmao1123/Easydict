@@ -21961,6 +21961,170 @@
           }
         }
       }
+    },
+    "setting.screenshot.pronunciation" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screenshot Translation Pronunciation"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pronunciación de la traducción de captura"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリーンショット翻訳の読み方"
+          }
+        },
+        "sk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Výslovnosť prekladu snímky"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "截图翻译读法"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "截圖翻譯讀法"
+          }
+        }
+      }
+    },
+    "setting.screenshot.pronunciation_prompt" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pronunciation prompt (AI)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prompt de pronunciación (IA)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み方プロンプト（AI）"
+          }
+        },
+        "sk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prompt výslovnosti (AI)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "读法提示词（AI）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "讀法提示詞（AI）"
+          }
+        }
+      }
+    },
+    "setting.screenshot.pronunciation_prompt_desc" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instruction sent to the AI that renders Chinese phonetic hints for short sources (≤10 words). You can add your own domain context, e.g. Go frameworks, AI Agent terms, so names like Eino or gin get the community pronunciation. Changes apply to the next pronunciation request."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instrucción enviada a la IA que genera pistas fonéticas chinas para fuentes cortas (≤10 palabras). Puedes añadir tu propio contexto, p. ej. frameworks de Go o términos de Agentes de IA, para que nombres como Eino o gin obtengan la pronunciación de la comunidad. Los cambios aplican a la siguiente solicitud."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "短い原文（≤10語）に中国語の発音ヒントを生成するAIへの指示です。GoフレームワークやAI Agent用語など自分の分野の背景を追記すると、Einoやginなどの名称の読みがより正確になります。変更は次回の読み方リクエストから適用されます。"
+          }
+        },
+        "sk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inštrukcia pre AI, ktorá generuje čínske fonetické hinty pre krátke zdroje (≤10 slov). Môžete pridať vlastný kontext, napr. Go frameworky alebo pojmy AI Agentov, aby názvy ako Eino alebo gin dostali výslovnosť používanú v komunite. Zmeny sa použijú pri ďalšej požiadavke."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发送给 AI 的指令，用于为短文本（≤10 个单词）生成中文谐音读法。可以补充你的领域背景，例如 Go 框架、AI Agent 术语，让 Eino、gin 这类名称的读法更贴近社区习惯。修改对下一次读法请求生效。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "發送給 AI 的指令，用於為短文字（≤10 個單詞）產生中文諧音讀法。可以補充你的領域背景，例如 Go 框架、AI Agent 術語，讓 Eino、gin 這類名稱的讀法更貼近社群習慣。修改對下一次讀法請求生效。"
+          }
+        }
+      }
+    },
+    "setting.screenshot.pronunciation_reset" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset to Default"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restablecer"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "デフォルトに戻す"
+          }
+        },
+        "sk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Obnoviť predvolené"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢复默认"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢復預設"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

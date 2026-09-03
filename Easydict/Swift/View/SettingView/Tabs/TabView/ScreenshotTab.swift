@@ -138,6 +138,33 @@ struct ScreenshotTab: View {
             } header: {
                 Text("setting.screenshot.save")
             }
+
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("setting.screenshot.pronunciation_prompt")
+                    Text("setting.screenshot.pronunciation_prompt_desc")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    TextEditor(text: $pronunciationPrompt)
+                        .font(.system(size: 12, design: .monospaced))
+                        .scrollContentBackground(.hidden)
+                        .padding(6)
+                        .frame(height: 170)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .strokeBorder(Color.primary.opacity(0.15))
+                        )
+                    HStack {
+                        Spacer()
+                        Button("setting.screenshot.pronunciation_reset") {
+                            pronunciationPrompt = PronunciationHelper.defaultPrompt
+                        }
+                    }
+                }
+                .padding(.vertical, 2)
+            } header: {
+                Text("setting.screenshot.pronunciation")
+            }
         }
         .formStyle(.grouped)
     }
@@ -164,6 +191,11 @@ struct ScreenshotTab: View {
     @State private var saveDirectoryPath = ""
 
     @Default(.isScreenshotTipLayerHidden) private var isScreenshotTipLayerHidden
+
+    /// Prompt sent to the AI chain that renders Chinese phonetic hints for
+    /// short sources; editable so domain terms (frameworks, team jargon)
+    /// can be recognized the way the user's field actually says them.
+    @Default(.dockPronunciationPrompt) private var pronunciationPrompt
 
     private func refreshSaveDirectoryPath() {
         saveDirectoryPath = (SaveDirectoryAccess.displayPath as NSString).expandingTildeInPath

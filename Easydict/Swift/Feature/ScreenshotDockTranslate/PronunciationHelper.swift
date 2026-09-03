@@ -38,15 +38,41 @@ enum PronunciationSpeaker {
 
 /// Generates the Chinese-character phonetic rendering ("克劳德" for Claude)
 /// for short English sources in the dock translate panel — pure text, no
-/// speech. Requests walk the user's AI services: free-tier OpenAI-compatible
-/// endpoints first (Zhipu's free GLM model), then the remaining enabled
-/// OpenAI-compatible services, and finally the local Claude Code CLI as the
-/// offline fallback.
+/// speech. Requests walk the user's AI services: the local Claude Code CLI
+/// first (subscription-priced, measurably better at phonetic rendering),
+/// then the enabled OpenAI-compatible services (free-tier GLM etc.) as the
+/// fallback for machines without the CLI.
 @MainActor
 final class PronunciationHelper {
     // MARK: Internal
 
     static let shared = PronunciationHelper()
+
+    // Few-shot examples matter: small free models (glm-4-flash) produced
+    // wrong syllables for "Reasoning" (「里森」) without them. The r->l rule
+    // matters too: an example rendering Run- as 「拉」 taught models to output
+    // 「拉格」 for RAG. Users can override the whole prompt from Settings →
+    // Screenshot (an empty override falls back here).
+    static let defaultPrompt = """
+    You are a pronunciation assistant. The user gives an English word or short phrase, \
+    often a software-engineering term (framework, library or tool name); prefer the \
+    pronunciation actually used in the developer community. \
+    Reply with ONLY its pronunciation written as Chinese characters that approximate the \
+    STANDARD English sound, syllable by syllable — never drop or merge syllables, and \
+    keep word endings like -ing, -tion, -ous. \
+    The English r-sound must use an r-initial Chinese character (瑞、若、热、软), \
+    never an l-initial one (拉、勒、里、兰).
+
+    Examples:
+    Claude -> 克劳德
+    goroutine -> 呙入汀
+    Reasoning -> 瑞森宁
+    RAG -> 瑞格
+    engineering -> 恩吉尼厄灵
+
+    No explanations, no quotes, no punctuation, no IPA, no pinyin. \
+    Keep it under 16 characters. If the input is not English, reply with an empty string.
+    """
 
     func fetchPronunciation(for text: String) async throws -> String {
         let providers = Self.availableProviders()
@@ -57,8 +83,10 @@ final class PronunciationHelper {
         var lastError = ""
         for provider in providers {
             do {
-                let result = try await provider.fetch(text, systemPrompt: Self.systemPrompt)
-                let trimmed = result.trimmingCharacters(in: .whitespacesAndNewlines)
+                let result = try await provider.fetch(text, systemPrompt: Self.activePrompt)
+                let trimmed = result
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .trimmingCharacters(in: CharacterSet(charactersIn: "。．.!?！？；;：:\"'“”‘’「」『』`"))
                 guard !trimmed.isEmpty else {
                     throw QueryError(type: .noResult, message: "empty pronunciation")
                 }
@@ -74,25 +102,29 @@ final class PronunciationHelper {
 
     // MARK: Private
 
-    private static let systemPrompt = """
-    You are a pronunciation assistant. The user gives an English word or short phrase. \
-    Reply with ONLY how to pronounce it, written as Chinese characters that approximate \
-    the English sound (for example: Claude -> 克劳德, goroutine -> 呙入汀). \
-    No explanations, no quotes, no punctuation, no IPA, no pinyin. \
-    Keep it under 12 characters. If the input is not English, reply with an empty string.
-    """
+    /// The effective prompt: the user's Settings override when non-empty.
+    private static var activePrompt: String {
+        let custom = Defaults[.dockPronunciationPrompt]
+        return custom.isEmpty ? defaultPrompt : custom
+    }
 
-    /// Enabled AI services that can answer an arbitrary prompt, in user order:
-    /// OpenAI-compatible HTTP services first, local Claude Code CLI last.
+    /// Enabled AI services that can answer an arbitrary prompt. The local
+    /// Claude Code CLI goes first on purpose: free-tier GLM models measurably
+    /// garble syllables (Runnable -> 「兰尼布尔」/「朗能」) while 4.5-flash
+    /// returns empty bodies and 4.7-flash sits under model-level rate limits.
+    /// Claude Code runs inside the user's subscription, so quality costs
+    /// nothing extra; the OpenAI-compatible services remain the fallback for
+    /// machines without the CLI.
     private static func availableProviders() -> [PronunciationProvider] {
         let candidates = LocalStorage.shared().enabledServices(.main).filter { service in
             service.enabledQuery && service.enabledAutoQuery
         }
 
-        var providers: [PronunciationProvider] = []
+        var claudeProviders: [PronunciationProvider] = []
+        var httpProviders: [PronunciationProvider] = []
         for service in candidates {
             if let openAI = service as? BaseOpenAIService, !openAI.model.isEmpty {
-                providers.append(
+                httpProviders.append(
                     OpenAICompatiblePronunciationProvider(
                         name: service.serviceType().rawValue,
                         endpoint: openAI.endpoint,
@@ -101,10 +133,10 @@ final class PronunciationHelper {
                     )
                 )
             } else if service is ClaudeCodeService {
-                providers.append(ClaudeCodePronunciationProvider(name: "claudeCode"))
+                claudeProviders.append(ClaudeCodePronunciationProvider(name: "claudeCode"))
             }
         }
-        return providers
+        return claudeProviders + httpProviders
     }
 }
 
@@ -140,7 +172,7 @@ struct OpenAICompatiblePronunciationProvider: PronunciationProvider {
             messages.append(message)
         }
 
-        var query = ChatQuery(messages: messages, model: model, temperature: 0.2)
+        var query = ChatQuery(messages: messages, model: model, temperature: 0.1)
         query.stream = false
 
         var request = URLRequest(url: url, timeoutInterval: EZNetWorkTimeoutInterval)

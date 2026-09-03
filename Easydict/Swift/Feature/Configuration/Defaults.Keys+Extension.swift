@@ -417,3 +417,14 @@ extension Defaults.Keys {
         default: KeyCombo(key: .s, cocoaModifiers: [.option, .shift])
     )
 }
+
+/// dock translate pronunciation
+extension Defaults.Keys {
+    /// System prompt for the pronunciation helper. The default ships inline
+    /// so the Settings editor opens pre-filled; an empty stored value makes
+    /// the helper fall back to the built-in prompt again.
+    static let dockPronunciationPrompt = Key<String>(
+        "EZDockPronunciationPrompt",
+        default: PronunciationHelper.defaultPrompt
+    )
+}

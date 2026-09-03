@@ -51,6 +51,8 @@ final class ScreenshotDockManager: NSObject {
     func dismiss() {
         translateTask?.cancel()
         translateTask = nil
+        prefetchTask?.cancel()
+        prefetchTask = nil
         detectManager = nil
         removeEventMonitors()
         teardownPanelOnly()
@@ -94,12 +96,14 @@ final class ScreenshotDockManager: NSObject {
     /// phonetic rendering of a fixed tech term and logs the result.
     func debugPronunciation() {
         Task {
-            do {
-                let result = try await PronunciationHelper.shared
-                    .fetchPronunciation(for: "goroutine")
-                logInfo("debug-pronunciation result: \(result)")
-            } catch {
-                logWarn("debug-pronunciation failed: \(error.localizedDescription)")
+            for word in ["Reasoning", "goroutine"] {
+                do {
+                    let result = try await PronunciationHelper.shared
+                        .fetchPronunciation(for: word)
+                    logInfo("debug-pronunciation \(word) result: \(result)")
+                } catch {
+                    logWarn("debug-pronunciation \(word) failed: \(error.localizedDescription)")
+                }
             }
         }
     }
@@ -114,6 +118,7 @@ final class ScreenshotDockManager: NSObject {
     /// Keeps the OCR helper alive until its async completion fires.
     private var detectManager: DetectManager?
     private var translateTask: Task<(), Never>?
+    private var prefetchTask: Task<(), Never>?
 
     private var eventMonitors: [Any] = []
     private var selectionRect = CGRect.zero
@@ -339,13 +344,13 @@ final class ScreenshotDockManager: NSObject {
             let words = state.segments[index].source
                 .split(whereSeparator: \.isWhitespace).count
             state.segments[index].pronunciationEligible =
-                !sourceLanguage.isChinese && words > 0 && words < 10
+                !sourceLanguage.isChinese && words > 0 && words <= 10
         }
     }
 
-    /// Handles a card's pronunciation toggle: first tap fetches the phonetic
-    /// rendering through the AI fallback chain and reveals it; later taps
-    /// just show/hide the cached result. `index` is a segment array index.
+    /// Handles a card's pronunciation toggle: if the result is already
+    /// prefetched it just shows/hides; otherwise it loads on demand and
+    /// reveals on completion. `index` is a segment array index.
     private func requestPronunciation(index: Int) {
         guard state.segments.indices.contains(index) else { return }
 
@@ -354,30 +359,64 @@ final class ScreenshotDockManager: NSObject {
             refreshLayout()
             return
         }
+        // A prefetch pass is already loading this segment — the finished
+        // result will simply appear under the toggle.
         guard !state.segments[index].pronunciationLoading else { return }
+
+        state.segments[index].showPronunciation = true
+        Task { [weak self] in
+            await self?.loadPronunciation(index: index, revealOnDone: false)
+        }
+    }
+
+    /// Loads the phonetic rendering for one segment through the AI fallback
+    /// chain. `revealOnDone` marks a user-initiated load (errors surface as a
+    /// toast and the row opens); prefetch loads fail silently instead.
+    private func loadPronunciation(index: Int, revealOnDone: Bool) async {
+        guard state.segments.indices.contains(index),
+              state.segments[index].pronunciation == nil,
+              !state.segments[index].pronunciationLoading
+        else { return }
 
         let source = state.segments[index].source
         state.segments[index].pronunciationLoading = true
         refreshLayout()
 
-        Task { [weak self] in
-            guard let self else { return }
-            do {
-                let pronunciation = try await PronunciationHelper.shared
-                    .fetchPronunciation(for: source)
-                guard state.segments.indices.contains(index) else { return }
-                state.segments[index].pronunciation = pronunciation
-                state.segments[index].pronunciationLoading = false
+        do {
+            let pronunciation = try await PronunciationHelper.shared
+                .fetchPronunciation(for: source)
+            guard state.segments.indices.contains(index) else { return }
+            state.segments[index].pronunciation = pronunciation
+            state.segments[index].pronunciationLoading = false
+            if revealOnDone {
                 state.segments[index].showPronunciation = true
-            } catch {
-                guard state.segments.indices.contains(index) else { return }
-                state.segments[index].pronunciationLoading = false
-                logWarn("[Pronunciation] fetch failed, index=\(index): \(error.localizedDescription)")
+            }
+        } catch {
+            guard state.segments.indices.contains(index) else { return }
+            state.segments[index].pronunciationLoading = false
+            logWarn("[Pronunciation] fetch failed, index=\(index): \(error.localizedDescription)")
+            if revealOnDone {
                 EZToast.showText(
                     NSLocalizedString("screenshot_dock_pronunciation_failed", comment: "")
                 )
             }
-            refreshLayout()
+        }
+        refreshLayout()
+    }
+
+    /// Short segments get their pronunciation fetched automatically right
+    /// after the translation settles, so tapping 读法 shows the result
+    /// instantly instead of waiting on the CLI. Runs serially to keep the
+    /// Claude Code subprocess count at one; long sentences never prefetch.
+    private func startPronunciationPrefetch() {
+        prefetchTask?.cancel()
+        prefetchTask = Task { [weak self] in
+            guard let self else { return }
+            for index in state.segments.indices {
+                guard !Task.isCancelled else { return }
+                guard state.segments[index].pronunciationEligible else { continue }
+                await loadPronunciation(index: index, revealOnDone: false)
+            }
         }
     }
 
@@ -491,6 +530,7 @@ final class ScreenshotDockManager: NSObject {
     private func completeFlow() {
         state.phase = .result
         refreshLayout()
+        startPronunciationPrefetch()
     }
 
     /// Shows the failure card inside the overlay instead of closing it, so the
