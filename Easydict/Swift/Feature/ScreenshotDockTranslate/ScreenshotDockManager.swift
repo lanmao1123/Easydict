@@ -34,16 +34,25 @@ final class ScreenshotDockManager: NSObject {
         // The panel must survive the session, and restoring the previous app
         // would fire the resign-active cancellation right after the capture.
         Screenshot.shared.shouldRestorePreviousApp = false
-        Screenshot.shared.startCapture { [weak self] image in
-            guard let self else { return }
-            guard let image else {
-                logInfo("dock translate aborted, capture returned no image")
-                // A nil capture (permission denied / user cancelled) must not
-                // leave the recognizing panel hanging on screen.
-                teardownPanelOnly()
-                return
+
+        Task { [weak self] in
+            // A Raycast quicklink activation races Raycast's own window
+            // retraction: when our app activates first, its overlay window
+            // sometimes stays on screen covering the very content the user
+            // wants to translate. Nudge it hidden and wait until it is
+            // really gone before the capture overlay comes up.
+            await self?.dismissRaycastWindowIfPresent()
+            Screenshot.shared.startCapture { [weak self] image in
+                guard let self else { return }
+                guard let image else {
+                    logInfo("dock translate aborted, capture returned no image")
+                    // A nil capture (permission denied / user cancelled) must not
+                    // leave the recognizing panel hanging on screen.
+                    teardownPanelOnly()
+                    return
+                }
+                handleCapturedImage(image)
             }
-            handleCapturedImage(image)
         }
     }
 
@@ -111,6 +120,10 @@ final class ScreenshotDockManager: NSObject {
 
     // MARK: Private
 
+    // MARK: Launcher Dismissal
+
+    private static let raycastBundleID = "com.raycast.macos"
+
     private var panel: ScreenshotDockPanel?
     private var highlightPanel: ScreenshotDockHighlightPanel?
     private let state = ScreenshotDockState()
@@ -130,6 +143,50 @@ final class ScreenshotDockManager: NSObject {
     /// remove it.
     private var isWorkInProgress: Bool {
         state.phase == .recognizing || state.phase == .translating
+    }
+
+    /// True when Raycast currently owns at least one on-screen window.
+    private static func isRaycastWindowOnScreen() -> Bool {
+        guard let list = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID
+        ) as? [[String: Any]]
+        else { return false }
+
+        guard let raycast = NSWorkspace.shared.runningApplications.first(where: {
+            $0.bundleIdentifier == raycastBundleID
+        })
+        else { return false }
+
+        return list.contains { window in
+            (window[kCGWindowOwnerPID as String] as? Int32) == raycast.processIdentifier
+        }
+    }
+
+    /// Asks Raycast to hide (⌘H equivalent) when a window is still on screen,
+    /// then polls until it actually leaves. Gives up after 0.8s so a broken
+    /// launch never stalls the capture flow; the intermittent residue only
+    /// happens when the quicklink activation beats Raycast's own retraction.
+    private func dismissRaycastWindowIfPresent() async {
+        guard let raycast = NSWorkspace.shared.runningApplications.first(where: {
+            $0.bundleIdentifier == Self.raycastBundleID
+        })
+        else { return }
+
+        guard Self.isRaycastWindowOnScreen() else {
+            logInfo("dock translate: Raycast window not on screen")
+            return
+        }
+
+        raycast.hide()
+        let deadline = Date().addingTimeInterval(0.8)
+        while Date() < deadline {
+            if !Self.isRaycastWindowOnScreen() {
+                logInfo("dock translate: Raycast window dismissed before capture")
+                return
+            }
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+        logWarn("dock translate: Raycast window still on screen after 0.8s, continuing")
     }
 
     private func handleCapturedImage(_ image: NSImage) {
