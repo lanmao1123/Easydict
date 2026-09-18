@@ -40,15 +40,27 @@ final class ScreenshotDockManager: NSObject {
         // would fire the resign-active cancellation right after the capture.
         Screenshot.shared.shouldRestorePreviousApp = false
 
-        Task { [weak self] in
+        let sessionID = UUID()
+        activeSessionID = sessionID
+        captureStartTask = Task { [weak self] in
+            guard let self else { return }
             // A Raycast quicklink activation races Raycast's own window
             // retraction: when our app activates first, its overlay window
             // sometimes stays on screen covering the very content the user
             // wants to translate. Nudge it hidden and wait until it is
             // really gone before the capture overlay comes up.
-            await self?.dismissRaycastWindowIfPresent()
+            await dismissRaycastWindowIfPresent()
+            guard !Task.isCancelled, activeSessionID == sessionID else {
+                logInfo("dock translate start cancelled before capture")
+                return
+            }
+            captureStartTask = nil
             Screenshot.shared.startCapture { [weak self] image in
                 guard let self else { return }
+                guard activeSessionID == sessionID else {
+                    logInfo("dock translate ignored stale capture completion")
+                    return
+                }
                 guard let image else {
                     logInfo("dock translate aborted, capture returned no image")
                     // A nil capture (permission denied / user cancelled) must not
@@ -63,6 +75,9 @@ final class ScreenshotDockManager: NSObject {
 
     /// Closes the overlay, cancels pending work and removes all listeners.
     func dismiss() {
+        captureStartTask?.cancel()
+        captureStartTask = nil
+        activeSessionID = UUID()
         translateTask?.cancel()
         translateTask = nil
         prefetchTask?.cancel()
@@ -135,8 +150,10 @@ final class ScreenshotDockManager: NSObject {
 
     /// Keeps the OCR helper alive until its async completion fires.
     private var detectManager: DetectManager?
+    private var captureStartTask: Task<(), Never>?
     private var translateTask: Task<(), Never>?
     private var prefetchTask: Task<(), Never>?
+    private var activeSessionID = UUID()
 
     private var eventMonitors: [Any] = []
     private var selectionRect = CGRect.zero
@@ -185,11 +202,16 @@ final class ScreenshotDockManager: NSObject {
         raycast.hide()
         let deadline = Date().addingTimeInterval(0.8)
         while Date() < deadline {
+            guard !Task.isCancelled else { return }
             if !Self.isRaycastWindowOnScreen() {
                 logInfo("dock translate: Raycast window dismissed before capture")
                 return
             }
-            try? await Task.sleep(nanoseconds: 50_000_000)
+            do {
+                try await Task.sleep(nanoseconds: 50_000_000)
+            } catch {
+                return
+            }
         }
         logWarn("dock translate: Raycast window still on screen after 0.8s, continuing")
     }
