@@ -40,12 +40,12 @@ enum AutoRedactor {
             selectionRect: selectionRect,
             captureDrawRect: captureDrawRect
         )
-        guard let cgImage = cgImage else { completion([]); return }
+        guard let cgImage = cgImage else { completeOnMain(completion, annotations: []); return }
 
         DispatchQueue.global(qos: .userInitiated).async {
             VisionOCR.performTextRecognition(cgImage: cgImage) { request, _ in
                 guard let observations = request.results as? [VNRecognizedTextObservation]
-                else { completion([]); return }
+                else { completeOnMain(completion, annotations: []); return }
                 let annotations = buildPIIRedactions(
                     observations: observations, selectionRect: selectionRect,
                     redactTool: redactTool, color: color,
@@ -53,7 +53,7 @@ enum AutoRedactor {
                 )
                 let censorMode = CensorMode(rawValue: UserDefaults.standard.integer(forKey: "censorMode")) ?? .pixelate
                 for ann in annotations { ann.censorMode = censorMode; ann.bakePixelate() }
-                DispatchQueue.main.async { completion(annotations) }
+                completeOnMain(completion, annotations: annotations)
             }
         }
     }
@@ -74,12 +74,12 @@ enum AutoRedactor {
             selectionRect: selectionRect,
             captureDrawRect: captureDrawRect
         )
-        guard let cgImage = cgImage else { completion([]); return }
+        guard let cgImage = cgImage else { completeOnMain(completion, annotations: []); return }
 
         DispatchQueue.global(qos: .userInitiated).async {
             VisionOCR.performTextRecognition(cgImage: cgImage) { request, _ in
                 guard let observations = request.results as? [VNRecognizedTextObservation]
-                else { completion([]); return }
+                else { completeOnMain(completion, annotations: []); return }
                 let groupID = UUID()
                 let padding: CGFloat = 2
                 var annotations: [Annotation] = []
@@ -107,7 +107,7 @@ enum AutoRedactor {
                 }
                 let censorMode = CensorMode(rawValue: UserDefaults.standard.integer(forKey: "censorMode")) ?? .pixelate
                 for ann in annotations { ann.censorMode = censorMode; ann.bakePixelate() }
-                DispatchQueue.main.async { completion(annotations) }
+                completeOnMain(completion, annotations: annotations)
             }
         }
     }
@@ -130,10 +130,13 @@ enum AutoRedactor {
             selectionRect: selectionRect,
             captureDrawRect: captureDrawRect
         )
-        guard let cgImage = cgImage else { completion([]); return }
+        guard let cgImage = cgImage else { completeOnMain(completion, annotations: []); return }
 
         let request = VNDetectFaceRectanglesRequest { request, _ in
-            guard let observations = request.results as? [VNFaceObservation] else { completion([]); return }
+            guard let observations = request.results as? [VNFaceObservation] else {
+                completeOnMain(completion, annotations: [])
+                return
+            }
             let groupID = UUID()
             let padding: CGFloat = 4
             var annotations: [Annotation] = []
@@ -161,11 +164,15 @@ enum AutoRedactor {
             }
             let censorMode = CensorMode(rawValue: UserDefaults.standard.integer(forKey: "censorMode")) ?? .pixelate
             for ann in annotations { ann.censorMode = censorMode; ann.bakePixelate() }
-            DispatchQueue.main.async { completion(annotations) }
+            completeOnMain(completion, annotations: annotations)
         }
 
         DispatchQueue.global(qos: .userInitiated).async {
-            try? VNImageRequestHandler(cgImage: cgImage, options: [:]).perform([request])
+            do {
+                try VNImageRequestHandler(cgImage: cgImage, options: [:]).perform([request])
+            } catch {
+                completeOnMain(completion, annotations: [])
+            }
         }
     }
 
@@ -185,10 +192,13 @@ enum AutoRedactor {
             selectionRect: selectionRect,
             captureDrawRect: captureDrawRect
         )
-        guard let cgImage = cgImage else { completion([]); return }
+        guard let cgImage = cgImage else { completeOnMain(completion, annotations: []); return }
 
         let request = VNDetectHumanRectanglesRequest { request, _ in
-            guard let observations = request.results as? [VNHumanObservation] else { completion([]); return }
+            guard let observations = request.results as? [VNHumanObservation] else {
+                completeOnMain(completion, annotations: [])
+                return
+            }
             let groupID = UUID()
             let padding: CGFloat = 4
             var annotations: [Annotation] = []
@@ -216,11 +226,15 @@ enum AutoRedactor {
             }
             let censorMode = CensorMode(rawValue: UserDefaults.standard.integer(forKey: "censorMode")) ?? .pixelate
             for ann in annotations { ann.censorMode = censorMode; ann.bakePixelate() }
-            DispatchQueue.main.async { completion(annotations) }
+            completeOnMain(completion, annotations: annotations)
         }
 
         DispatchQueue.global(qos: .userInitiated).async {
-            try? VNImageRequestHandler(cgImage: cgImage, options: [:]).perform([request])
+            do {
+                try VNImageRequestHandler(cgImage: cgImage, options: [:]).perform([request])
+            } catch {
+                completeOnMain(completion, annotations: [])
+            }
         }
     }
 
@@ -252,6 +266,22 @@ enum AutoRedactor {
     }()
 
     // MARK: - Helpers
+
+    /// All callers mutate AppKit-backed overlay state in their completion.
+    /// Vision may invoke both success and failure handlers off-main, so keep
+    /// every terminal path on the main thread instead of relying on callback
+    /// scheduling details from individual request types.
+    private static func completeOnMain(
+        _ completion: @escaping ([Annotation]) -> (), annotations: [Annotation]
+    ) {
+        if Thread.isMainThread {
+            completion(annotations)
+        } else {
+            DispatchQueue.main.async {
+                completion(annotations)
+            }
+        }
+    }
 
     private static func cropToCGImage(screenshot: NSImage, selectionRect: NSRect, captureDrawRect: NSRect) -> CGImage? {
         let regionImage = NSImage(size: selectionRect.size, flipped: false) { _ in

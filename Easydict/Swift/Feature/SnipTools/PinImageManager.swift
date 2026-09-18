@@ -286,6 +286,10 @@ final class PinImageManager: NSObject {
         removePinchTap()
         pinchHealthTimer?.invalidate()
         pinchHealthTimer = nil
+        if let wakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
+            self.wakeObserver = nil
+        }
         if let magnifyMonitor {
             NSEvent.removeMonitor(magnifyMonitor)
             self.magnifyMonitor = nil
@@ -354,7 +358,10 @@ final class PinImageManager: NSObject {
             }
         }
         pinchTapBox = box
-        let boxed = Unmanaged.passRetained(box)
+        // `pinchTapBox` owns this callback for exactly the lifetime of every
+        // installed tap. The C callback only borrows it; retaining here as
+        // well would leak one box each time the final pin is closed.
+        let boxed = Unmanaged.passUnretained(box)
 
         let callback: CGEventTapCallBack = { _, type, event, userInfo in
             /*
@@ -408,7 +415,6 @@ final class PinImageManager: NSObject {
 
         if installed == 0 {
             logWarn("[SnipTools] All pinch taps unavailable, falling back to NSEvent monitors")
-            boxed.release()
             pinchTapBox = nil
             installMagnifyMonitorIfNeeded()
             return
