@@ -21,9 +21,18 @@ struct AppleServiceTests {
         await apple.prepareSupportedLanguages()
     }
 
+    /// - NOTE: Disabled by default — the Translation framework presents a
+    /// one-time system confirmation sheet per language pair, which no human
+    /// can confirm in a headless test host: the call hangs and eventually
+    /// reports "操作已被取消". Run manually once to confirm the pair, then
+    /// re-enable if desired.
     @MainActor
     @available(macOS 15.0, *)
-    @Test("Apple Offline Translation", .tags(.apple, .integration))
+    @Test(
+        "Apple Offline Translation",
+        .tags(.apple, .integration),
+        .disabled("needs interactive translation-pair confirmation; hangs headless")
+    )
     func testAppleOfflineTranslation() async throws {
         let translationService = AppleTranslation(
             configuration: .init(

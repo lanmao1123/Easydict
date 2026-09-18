@@ -5054,7 +5054,7 @@
 				SWIFT_OBJC_BRIDGING_HEADER = "";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Easydict-debug.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Easydict-debug";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Yaomao.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Yaomao";
 			};
 			name = Debug;
 		};
@@ -5081,7 +5081,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_OBJC_BRIDGING_HEADER = "";
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Easydict-debug.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Easydict-debug";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Yaomao.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Yaomao";
 			};
 			name = Release;
 		};

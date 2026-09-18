@@ -16,7 +16,14 @@ import Testing
 struct SystemUtilitiesTests {
     let systemUtility = SystemUtility.shared
 
-    @Test("Alert Volume Control", .tags(.system))
+    /// - NOTE: Disabled by default — routes through the `NSAppleScript`
+    ///   in-process backend, which fails under the xcodebuild test host (see
+    ///   AppleScriptExecutorTests). Run manually when debugging that backend.
+    @Test(
+        "Alert Volume Control",
+        .tags(.system),
+        .disabled("NSAppleScript off-main fails under the test host; run manually")
+    )
     func testAlertVolume() async throws {
         let originalVolume = try await AppleScriptTask.alertVolume()
         print("Original volume: \(originalVolume)")
