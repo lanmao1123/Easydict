@@ -28,6 +28,11 @@ final class ScreenshotDockManager: NSObject {
     /// Starts a fresh dock translate session.
     func start() {
         logInfo("dock translate start requested")
+        // A completed capture hands control to OCR/translation asynchronously,
+        // so Screenshot.shared is already idle while that work is still
+        // running. Starting a new capture must cancel the old flow first or a
+        // late result can overwrite the new panel's shared state.
+        dismiss()
         // Close other floating query windows first so they do not cover the area.
         EZWindowManager.shared().closeFloatingWindowIfNotPinnedOrMain()
 
@@ -220,6 +225,7 @@ final class ScreenshotDockManager: NSObject {
                 // Position-aware OCR: lines keep their normalized Vision
                 // bounding boxes so paragraphs stay aligned with the pixels.
                 let lines = try await AppleOCREngine().recognizeSegments(image: image)
+                try Task.checkCancellation()
                 let paragraphs = ScreenshotDockLayout.paragraphs(fromLines: lines)
                 logInfo("dock OCR done, lines=\(lines.count), paragraphs=\(paragraphs.count)")
                 guard !paragraphs.isEmpty else {
@@ -256,6 +262,7 @@ final class ScreenshotDockManager: NSObject {
                 var sourceLanguage = Language.auto
                 do {
                     let detectedModel = try await DetectManager().detectText(mergedText)
+                    try Task.checkCancellation()
                     sourceLanguage = detectedModel.detectedLanguage
                 } catch {
                     finishFailure(error.localizedDescription)
@@ -363,6 +370,7 @@ final class ScreenshotDockManager: NSObject {
                 // result lifecycle; bare translate crashes services
                 // like Youdao (result stays nil).
                 let result = try await service.startQuery(queryModel)
+                try Task.checkCancellation()
                 if let resultError = result.error {
                     perSegmentErrors.append(resultError.localizedDescription)
                     continue

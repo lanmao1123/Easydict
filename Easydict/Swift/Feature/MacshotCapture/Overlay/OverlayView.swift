@@ -4838,6 +4838,7 @@ class OverlayView: NSView {
         autoQuickSaveMode = false
         autoScrollCaptureMode = false
         autoConfirmMode = false
+        autoHostImageMode = false
         needsDisplay = true
     }
 

@@ -18,7 +18,11 @@ struct ClipboardTab: View {
             Section {
                 Picker("setting.clipboard.image_max_count", selection: $imageMaxCount) {
                     ForEach(Self.imageCountOptions, id: \.self) { count in
-                        Text("clipboard.count_option \(count)").tag(count)
+                        if count == 0 {
+                            Text("clipboard_count_unlimited").tag(count)
+                        } else {
+                            Text("clipboard.count_option \(count)").tag(count)
+                        }
                     }
                 }
             } header: {
@@ -65,10 +69,10 @@ struct ClipboardTab: View {
 
     // MARK: Private
 
-    private static let imageCountOptions = [50, 100, 200, 500]
+    private static let imageCountOptions = [0, 50, 100, 200, 500]
 
-    // Default mirrors ClipboardMonitor's image eviction fallback (100).
-    @AppStorage("clipboardImageMaxCount") private var imageMaxCount = 100
+    // Zero means unlimited: image and text history are both kept locally.
+    @AppStorage("clipboardImageMaxCount") private var imageMaxCount = 0
 
     @State private var storePath = ""
     @State private var storageSize: String?

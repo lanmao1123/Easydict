@@ -17,6 +17,7 @@ import SQLite3
 struct PendingRow {
     let kind: ClipboardEntryKind
     let text: String?
+    let ocrText: String?
     let preview: String
     let imageFile: String?
     let thumbFile: String?
@@ -62,6 +63,8 @@ final class ClipboardStore {
             throw ClipboardStoreError.openFailed(String(cString: sqlite3_errmsg(db)))
         }
         try exec(Self.schemaSQL)
+        try addImageOCRTextColumnIfNeeded()
+        self.fullTextSearchAvailable = configureFullTextSearch()
     }
 
     deinit {
@@ -109,6 +112,7 @@ final class ClipboardStore {
         return try insert(PendingRow(
             kind: .text,
             text: text,
+            ocrText: nil,
             preview: text.clipboardPreview(),
             imageFile: nil,
             thumbFile: nil,
@@ -142,6 +146,7 @@ final class ClipboardStore {
         return try insert(PendingRow(
             kind: .image,
             text: nil,
+            ocrText: nil,
             preview: Self.imagePreviewTitle(width: pixelWidth, height: pixelHeight),
             imageFile: imageFile,
             thumbFile: thumbFile,
@@ -197,17 +202,31 @@ final class ClipboardStore {
         since: Date?,
         keyword: String? = nil,
         kind: ClipboardKindFilter = .all,
-        limit: Int = 500
+        includesImageText: Bool = false,
+        limit: Int? = nil
     ) throws
         -> [ClipboardEntry] {
-        var sql = "SELECT \(Self.columns) FROM entries WHERE 1=1"
+        let usesFullTextSearch = keyword?.isEmpty == false && fullTextSearchAvailable
+        var sql: String
+        if usesFullTextSearch {
+            sql = "SELECT \(Self.qualifiedColumns) FROM entries JOIN entries_fts ON entries_fts.rowid = entries.id WHERE entries_fts MATCH ?"
+        } else {
+            sql = "SELECT \(Self.columns) FROM entries WHERE 1=1"
+        }
         var bindings: [String] = []
+
+        if let keyword, !keyword.isEmpty, usesFullTextSearch {
+            bindings.append(Self.fullTextQuery(for: keyword))
+            if !includesImageText {
+                sql += " AND entries.kind = 'text'"
+            }
+        }
 
         if let since {
             sql += " AND created_at >= ?"
             bindings.append(String(since.timeIntervalSince1970))
         }
-        if let keyword, !keyword.isEmpty {
+        if let keyword, !keyword.isEmpty, !usesFullTextSearch {
             sql += " AND kind = 'text' AND text LIKE '%' || ? || '%'"
             bindings.append(keyword)
         }
@@ -219,7 +238,10 @@ final class ClipboardStore {
         case .image:
             sql += " AND kind = 'image'"
         }
-        sql += " ORDER BY created_at DESC LIMIT \(limit)"
+        sql += " ORDER BY created_at DESC"
+        if let limit, limit > 0 {
+            sql += " LIMIT \(limit)"
+        }
 
         return try query(sql, bindings: bindings)
     }
@@ -307,6 +329,33 @@ final class ClipboardStore {
         return Int(sqlite3_column_int64(statement, 0))
     }
 
+    /// Returns image entries that have not been OCR-indexed yet. Empty text is
+    /// persisted after a completed no-text recognition, so it is not retried.
+    func unindexedImages(limit: Int = 200) throws -> [ClipboardEntry] {
+        try query(
+            "SELECT \(Self.columns) FROM entries WHERE kind = 'image' AND ocr_text IS NULL ORDER BY created_at DESC LIMIT \(limit)",
+            bindings: []
+        )
+    }
+
+    /// Stores a completed background OCR result and lets the FTS trigger keep
+    /// the text/image search index in sync.
+    func updateImageOCRText(_ text: String, forEntryID id: Int64) throws {
+        var statement: OpaquePointer?
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_prepare_v2(
+            db, "UPDATE entries SET ocr_text = ? WHERE id = ? AND kind = 'image'",
+            -1, &statement, nil
+        ) == SQLITE_OK else {
+            throw ClipboardStoreError.prepareFailed(String(cString: sqlite3_errmsg(db)))
+        }
+        sqlite3_bind_text(statement, 1, text, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_int64(statement, 2, id)
+        guard sqlite3_step(statement) == SQLITE_DONE else {
+            throw ClipboardStoreError.execFailed(String(cString: sqlite3_errmsg(db)))
+        }
+    }
+
     /// Absolute URL of an entry's stored image, if it still exists.
     func imageURL(for entry: ClipboardEntry) -> URL? {
         guard let file = entry.imageFile else { return nil }
@@ -339,6 +388,7 @@ final class ClipboardStore {
     // MARK: Private
 
     private static let columns = "id, kind, text, preview, image_file, thumb_file, width, height, byte_count, content_hash, source_app, source_bundle, created_at"
+    private static let qualifiedColumns = "entries.id, entries.kind, entries.text, entries.preview, entries.image_file, entries.thumb_file, entries.width, entries.height, entries.byte_count, entries.content_hash, entries.source_app, entries.source_bundle, entries.created_at"
 
     private static let schemaSQL = """
     CREATE TABLE IF NOT EXISTS entries (
@@ -357,7 +407,32 @@ final class ClipboardStore {
         created_at REAL NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_entries_created ON entries(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_entries_kind_created ON entries(kind, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_entries_hash ON entries(content_hash);
+    """
+
+    private static let fullTextSchemaSQL = """
+    CREATE TABLE IF NOT EXISTS metadata (
+        key TEXT PRIMARY KEY NOT NULL,
+        value TEXT NOT NULL
+    );
+    CREATE VIRTUAL TABLE IF NOT EXISTS entries_fts USING fts5(
+        text,
+        ocr_text,
+        content='entries',
+        content_rowid='id',
+        tokenize='unicode61'
+    );
+    CREATE TRIGGER IF NOT EXISTS entries_fts_insert AFTER INSERT ON entries BEGIN
+        INSERT INTO entries_fts(rowid, text, ocr_text) VALUES (new.id, new.text, new.ocr_text);
+    END;
+    CREATE TRIGGER IF NOT EXISTS entries_fts_delete AFTER DELETE ON entries BEGIN
+        INSERT INTO entries_fts(entries_fts, rowid, text, ocr_text) VALUES ('delete', old.id, old.text, old.ocr_text);
+    END;
+    CREATE TRIGGER IF NOT EXISTS entries_fts_update AFTER UPDATE OF text, ocr_text ON entries BEGIN
+        INSERT INTO entries_fts(entries_fts, rowid, text, ocr_text) VALUES ('delete', old.id, old.text, old.ocr_text);
+        INSERT INTO entries_fts(rowid, text, ocr_text) VALUES (new.id, new.text, new.ocr_text);
+    END;
     """
 
     private static let fileNameFormatter: DateFormatter = {
@@ -368,11 +443,80 @@ final class ClipboardStore {
     }()
 
     private var db: OpaquePointer?
+    private var fullTextSearchAvailable = false
+
+    private static func fullTextQuery(for keyword: String) -> String {
+        keyword
+            .split(whereSeparator: \.isWhitespace)
+            .map { "\"\(String($0).replacingOccurrences(of: "\"", with: "\"\""))\"" }
+            .joined(separator: " AND ")
+    }
+
+    /// Installs an external-content FTS5 index once and rebuilds it for
+    /// databases created before the index existed. If a platform SQLite build
+    /// lacks FTS5, history remains usable through the compatible LIKE fallback.
+    private func configureFullTextSearch() -> Bool {
+        do {
+            try exec(Self.fullTextSchemaSQL)
+            let versionKey = "entries-fts-version"
+            guard try metadataValue(for: versionKey) != "2" else { return true }
+            try exec("DROP TRIGGER IF EXISTS entries_fts_insert")
+            try exec("DROP TRIGGER IF EXISTS entries_fts_delete")
+            try exec("DROP TRIGGER IF EXISTS entries_fts_update")
+            try exec("DROP TABLE IF EXISTS entries_fts")
+            try exec(Self.fullTextSchemaSQL)
+            try exec("INSERT INTO entries_fts(entries_fts) VALUES ('rebuild')")
+            try setMetadataValue("2", for: versionKey)
+            return true
+        } catch {
+            logWarn("[Clipboard] Full-text index unavailable: \(error)")
+            return false
+        }
+    }
+
+    private func metadataValue(for key: String) throws -> String? {
+        var statement: OpaquePointer?
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_prepare_v2(db, "SELECT value FROM metadata WHERE key = ?", -1, &statement, nil) == SQLITE_OK
+        else {
+            throw ClipboardStoreError.prepareFailed(String(cString: sqlite3_errmsg(db)))
+        }
+        sqlite3_bind_text(statement, 1, key, -1, SQLITE_TRANSIENT)
+        guard sqlite3_step(statement) == SQLITE_ROW else { return nil }
+        return String(cString: sqlite3_column_text(statement, 0))
+    }
+
+    private func setMetadataValue(_ value: String, for key: String) throws {
+        var statement: OpaquePointer?
+        defer { sqlite3_finalize(statement) }
+        let sql = "INSERT INTO metadata(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+            throw ClipboardStoreError.prepareFailed(String(cString: sqlite3_errmsg(db)))
+        }
+        sqlite3_bind_text(statement, 1, key, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(statement, 2, value, -1, SQLITE_TRANSIENT)
+        guard sqlite3_step(statement) == SQLITE_DONE else {
+            throw ClipboardStoreError.execFailed(String(cString: sqlite3_errmsg(db)))
+        }
+    }
 
     private func exec(_ sql: String) throws {
         guard sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK else {
             throw ClipboardStoreError.execFailed(String(cString: sqlite3_errmsg(db)))
         }
+    }
+
+    private func addImageOCRTextColumnIfNeeded() throws {
+        var statement: OpaquePointer?
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_prepare_v2(db, "PRAGMA table_info(entries)", -1, &statement, nil) == SQLITE_OK else {
+            throw ClipboardStoreError.prepareFailed(String(cString: sqlite3_errmsg(db)))
+        }
+        while sqlite3_step(statement) == SQLITE_ROW {
+            guard let name = sqlite3_column_text(statement, 1) else { continue }
+            if String(cString: name) == "ocr_text" { return }
+        }
+        try exec("ALTER TABLE entries ADD COLUMN ocr_text TEXT")
     }
 
     @discardableResult
@@ -382,8 +526,8 @@ final class ClipboardStore {
 
         let sql = """
         INSERT INTO entries
-        (kind, text, preview, image_file, thumb_file, width, height, byte_count, content_hash, source_app, source_bundle, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (kind, text, ocr_text, preview, image_file, thumb_file, width, height, byte_count, content_hash, source_app, source_bundle, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
             throw ClipboardStoreError.prepareFailed(String(cString: sqlite3_errmsg(db)))
@@ -395,16 +539,17 @@ final class ClipboardStore {
         } else {
             sqlite3_bind_null(statement, 2)
         }
-        sqlite3_bind_text(statement, 3, row.preview, -1, SQLITE_TRANSIENT)
-        bindOptionalText(statement, 4, row.imageFile)
-        bindOptionalText(statement, 5, row.thumbFile)
-        bindOptionalInt(statement, 6, row.pixelWidth)
-        bindOptionalInt(statement, 7, row.pixelHeight)
-        sqlite3_bind_int64(statement, 8, Int64(row.byteCount))
-        sqlite3_bind_text(statement, 9, row.contentHash, -1, SQLITE_TRANSIENT)
-        bindOptionalText(statement, 10, row.sourceApp)
-        bindOptionalText(statement, 11, row.sourceBundleID)
-        sqlite3_bind_double(statement, 12, row.createdAt.timeIntervalSince1970)
+        bindOptionalText(statement, 3, row.ocrText)
+        sqlite3_bind_text(statement, 4, row.preview, -1, SQLITE_TRANSIENT)
+        bindOptionalText(statement, 5, row.imageFile)
+        bindOptionalText(statement, 6, row.thumbFile)
+        bindOptionalInt(statement, 7, row.pixelWidth)
+        bindOptionalInt(statement, 8, row.pixelHeight)
+        sqlite3_bind_int64(statement, 9, Int64(row.byteCount))
+        sqlite3_bind_text(statement, 10, row.contentHash, -1, SQLITE_TRANSIENT)
+        bindOptionalText(statement, 11, row.sourceApp)
+        bindOptionalText(statement, 12, row.sourceBundleID)
+        sqlite3_bind_double(statement, 13, row.createdAt.timeIntervalSince1970)
 
         guard sqlite3_step(statement) == SQLITE_DONE else {
             throw ClipboardStoreError.execFailed(String(cString: sqlite3_errmsg(db)))

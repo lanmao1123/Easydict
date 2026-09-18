@@ -38,17 +38,28 @@ final class SnipToolsManager: NSObject {
             logWarn("startScreenshotEdit skipped, capture already in progress")
             return
         }
+        /*
+         F1 reaches this async entry through Carbon and the menu-safe channel.
+         Their shared claim normally deduplicates one press, but a task queued
+         as the editor closes can run after the capture flag clears. Suppress
+         only that short tail so confirming a copy cannot reopen the overlay.
+         */
+        guard Date().timeIntervalSince(lastCaptureEndedAt) >= Self.restartGuardInterval else {
+            logWarn("startScreenshotEdit skipped, capture just ended")
+            return
+        }
 
         Screenshot.shared.shouldRestorePreviousApp = false
         Screenshot.shared.editModeEnabled = true
         logInfo("startScreenshotEdit began, presetScreens=\(presetFrozenImages.count)")
         await withCheckedContinuation { continuation in
             /*
-             The capture engine copies the composited image itself (PNG+TIFF+
-             backing file), so the completion only releases the continuation —
-             writing the pasteboard here again would downgrade that payload.
+              The capture engine copies the composited image itself (PNG+TIFF+
+              backing file), so the completion only releases the continuation —
+              writing the pasteboard here again would downgrade that payload.
              */
             Screenshot.shared.startCapture(presetFrozenImages: presetFrozenImages) { _ in
+                self.lastCaptureEndedAt = Date()
                 continuation.resume()
             }
         }
@@ -63,4 +74,10 @@ final class SnipToolsManager: NSObject {
     func copyImagePath() async {
         PasteboardPathService.saveFromPasteboardAndCopyPath()
     }
+
+    // MARK: Private
+
+    private static let restartGuardInterval: TimeInterval = 0.35
+
+    private var lastCaptureEndedAt = Date.distantPast
 }

@@ -30,6 +30,13 @@ enum ClipboardTimeFilter: String, CaseIterable {
     }
 }
 
+// MARK: - ClipboardSearchScope
+
+enum ClipboardSearchScope: String, CaseIterable {
+    case text
+    case textAndImage
+}
+
 // MARK: - ClipboardHistoryViewModel
 
 @MainActor
@@ -63,9 +70,15 @@ final class ClipboardHistoryViewModel: ObservableObject {
         }
     }
 
-    @Published var timeFilter: ClipboardTimeFilter = .week {
+    @Published var timeFilter: ClipboardTimeFilter = .all {
         didSet {
             if oldValue != timeFilter { load() }
+        }
+    }
+
+    @Published var searchScope: ClipboardSearchScope = .text {
+        didSet {
+            if oldValue != searchScope { load() }
         }
     }
 
@@ -99,7 +112,8 @@ final class ClipboardHistoryViewModel: ObservableObject {
             entries = try store.entries(
                 since: timeFilter.since,
                 keyword: keyword.isEmpty ? nil : keyword,
-                kind: kindFilter
+                kind: kindFilter,
+                includesImageText: searchScope == .textAndImage
             )
         } catch {
             entries = []
@@ -246,6 +260,14 @@ struct ClipboardHistoryView: View {
             .pickerStyle(.segmented)
             .labelsHidden()
             .frame(width: 130)
+
+            Picker("search", selection: $viewModel.searchScope) {
+                Text(String(localized: "clipboard_search_text")).tag(ClipboardSearchScope.text)
+                Text(String(localized: "clipboard_search_text_and_image")).tag(ClipboardSearchScope.textAndImage)
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .frame(width: 112)
 
             Picker("kind", selection: $viewModel.kindFilter) {
                 Text(String(localized: "clipboard_type_all")).tag(ClipboardKindFilter.all)

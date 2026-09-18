@@ -7,6 +7,7 @@
 //
 
 import AppKit
+import ImageIO
 
 // MARK: - ClipboardMonitor
 
@@ -87,6 +88,7 @@ final class ClipboardMonitor: NSObject {
             let opened = try ClipboardStore(directory: Self.defaultDirectory())
             store = opened
             logInfo("[Clipboard] Store opened at \(opened.directory.path)")
+            enqueueImageOCRBackfill(from: opened)
         } catch {
             logError("[Clipboard] Store init failed: \(String(describing: error))")
             store = nil
@@ -134,6 +136,7 @@ final class ClipboardMonitor: NSObject {
     private var lastChangeCount = NSPasteboard.general.changeCount
     private var suppressedChangeCount: Int?
     private let workQueue = DispatchQueue(label: "com.izual.Easydict.clipboard.store", qos: .utility)
+    private let imageOCRQueue = DispatchQueue(label: "com.izual.Easydict.clipboard.image-ocr", qos: .utility)
 
     private static func defaultDirectory() -> URL {
         if let configured = UserDefaults.standard.string(forKey: storePathKey)?.trimmingCharacters(in: .whitespaces),
@@ -159,6 +162,17 @@ final class ClipboardMonitor: NSObject {
             pixelWidth: rep.pixelsWide,
             pixelHeight: rep.pixelsHigh
         )
+    }
+
+    private static func recognizedText(in pngData: Data) -> String {
+        guard let source = CGImageSourceCreateWithData(pngData as CFData, nil),
+              let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return "" }
+        var result = ""
+        VisionOCR.performTextRecognition(cgImage: image) { request, _ in
+            result = VisionOCR.recognizedText(from: request)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return result
     }
 
     private func poll() {
@@ -236,7 +250,7 @@ final class ClipboardMonitor: NSObject {
 
             let thumbName = makeThumbnail(for: imageURL, maxPixel: 96)
 
-            try store.insertImage(
+            let entryID = try store.insertImage(
                 imageFile: fileName,
                 thumbFile: thumbName,
                 pixelWidth: payload.pixelWidth,
@@ -247,23 +261,66 @@ final class ClipboardMonitor: NSObject {
                 sourceBundleID: sourceBundle
             )
             logInfo("[Clipboard] Captured image \(payload.pixelWidth)x\(payload.pixelHeight)")
+            enqueueImageOCR(payload.pngData, entryID: entryID)
             pruneImageStorageIfNeeded()
         } catch {
             logError("[Clipboard] Image insert failed: \(String(describing: error))")
         }
     }
 
-    /// The capacity APIs existed but nothing called them, so the image folder
-    /// grew forever. Keep it under ~500 MB / 60 days.
-    /// Evicts the oldest images beyond the user's count cap (default 100),
-    /// deleting their files too. A 500 MB total-size backstop still applies
-    /// for unusually large payloads. Text entries are never touched here.
+    /// Performs image OCR outside the clipboard capture queue. The stored
+    /// result makes later history searches a database lookup, never a live
+    /// Vision request on the user's keystroke.
+    private func enqueueImageOCR(_ pngData: Data, entryID: Int64) {
+        imageOCRQueue.async { [weak self] in
+            let text = Self.recognizedText(in: pngData)
+            self?.workQueue.async { [weak self] in
+                guard let self, let store else { return }
+                do {
+                    try store.updateImageOCRText(text, forEntryID: entryID)
+                } catch {
+                    logWarn("[Clipboard] Image OCR index update failed: \(error)")
+                }
+            }
+        }
+    }
+
+    private func enqueueImageOCRBackfill(from store: ClipboardStore) {
+        workQueue.async { [weak self] in
+            guard let self, let entries = try? store.unindexedImages(limit: 10_000) else { return }
+            imageOCRQueue.async { [weak self] in
+                for entry in entries {
+                    autoreleasepool {
+                        guard let self,
+                              let url = store.imageURL(for: entry),
+                              let data = try? Data(contentsOf: url) else { return }
+                        let text = Self.recognizedText(in: data)
+
+                        // Keep one image payload alive at a time. Enqueuing every
+                        // historical image with its Data would retain a potentially
+                        // multi-gigabyte backlog while Vision works through it.
+                        self.workQueue.sync { [weak self] in
+                            guard let self, self.store === store else { return }
+                            do {
+                                try store.updateImageOCRText(text, forEntryID: entry.id)
+                            } catch {
+                                logWarn("[Clipboard] Image OCR backfill update failed: \(error)")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Evicts oldest images only when the user has explicitly selected a
+    /// count cap. The default is unlimited; text entries are never touched.
     private func pruneImageStorageIfNeeded() {
         guard let store else { return }
         do {
-            let maxCount = UserDefaults.standard.object(forKey: "clipboardImageMaxCount") as? Int ?? 100
+            let maxCount = UserDefaults.standard.object(forKey: "clipboardImageMaxCount") as? Int ?? 0
             let imageCount = try store.imageCount()
-            if imageCount > maxCount {
+            if maxCount > 0, imageCount > maxCount {
                 let victims = try store.oldestImages(limit: imageCount - maxCount)
                 for entry in victims {
                     try store.delete(id: entry.id)
@@ -273,11 +330,6 @@ final class ClipboardMonitor: NSObject {
                 }
             }
 
-            let capBytes = 500 * 1024 * 1024
-            if try store.totalImageBytes() > capBytes {
-                let removed = try store.deleteImages(olderThan: Date().addingTimeInterval(-60 * 24 * 3600))
-                logInfo("[Clipboard] Storage pruned, removedImages=\(removed)")
-            }
         } catch {
             logWarn("[Clipboard] Storage prune failed: \(String(describing: error))")
         }

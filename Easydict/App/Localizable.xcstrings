@@ -2531,6 +2531,17 @@
         }
       }
     },
+    "clipboard_count_unlimited" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unlimited" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Sin límite" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "無制限" } },
+        "sk" : { "stringUnit" : { "state" : "translated", "value" : "Bez limitu" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "永久保留" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "永久保留" } }
+      }
+    },
     "clipboard_filter_placeholder" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2898,6 +2909,28 @@
             "value" : "時間"
           }
         }
+      }
+    },
+    "clipboard_search_text" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Text only" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Solo texto" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "テキストのみ" } },
+        "sk" : { "stringUnit" : { "state" : "translated", "value" : "Len text" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅文字" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "僅文字" } }
+      }
+    },
+    "clipboard_search_text_and_image" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Text + image text" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Texto e imágenes" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "テキストと画像内文字" } },
+        "sk" : { "stringUnit" : { "state" : "translated", "value" : "Text a text na obrázkoch" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文字和图片文字" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "文字和圖片文字" } }
       }
     },
     "clipboard_time_all" : {
@@ -15759,37 +15792,37 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Only the most recent images are kept; text and other non-image entries are stored permanently."
+            "value" : "Images and text are stored permanently by default. Choose a limit to automatically remove older images."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Solo se conservan las imágenes más recientes; el texto y otras entradas sin imagen se guardan de forma permanente."
+            "value" : "Las imágenes y el texto se guardan de forma permanente de forma predeterminada. Elige un límite para eliminar automáticamente imágenes antiguas."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "最新の画像のみを保持します。テキストなど画像以外の項目は永久に保存されます。"
+            "value" : "画像とテキストはデフォルトで永久に保存されます。上限を選ぶと古い画像を自動削除できます。"
           }
         },
         "sk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ponechá sa len najnovšie obrázky; text a ďalšie položky bez obrázkov sa ukladajú natrvalo."
+            "value" : "Obrázky aj text sa predvolene ukladajú natrvalo. Výberom limitu sa staršie obrázky automaticky odstránia."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "仅保留最近的图片，超出自动删除最旧的；文字等非图片内容永久保存。"
+            "value" : "图片和文字默认永久保存在本地；选择图片上限后，才会自动删除较旧的图片。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "僅保留最近的圖片，超出自動刪除最舊的；文字等非圖片內容永久保存。"
+            "value" : "圖片和文字預設永久保存在本機；選擇圖片上限後，才會自動刪除較舊的圖片。"
           }
         }
       }
