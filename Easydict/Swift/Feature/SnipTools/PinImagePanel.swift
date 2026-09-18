@@ -45,7 +45,7 @@ final class PinImagePanel: NSPanel {
         // Stay visible across Spaces and above fullscreen apps like Snipaste.
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
 
-        isMovableByWindowBackground = true
+        isMovableByWindowBackground = false
         hidesOnDeactivate = false
         isReleasedWhenClosed = false
 
@@ -105,17 +105,23 @@ final class PinImagePanel: NSPanel {
     }
 
     override func sendEvent(_ event: NSEvent) {
-        /*
-         macOS routes trackpad gestures only to the ACTIVE app, so a pinch
-         over a pin works exclusively while Yaomao is frontmost. Clicking a
-         pin therefore brings the app forward (Snipaste behaves the same):
-         select-then-pinch now zooms reliably, even after the user clicked
-         into another app and re-selected the pin. sendEvent is the one hook
-         that sees every mouse down reaching this window — NSWindow has no
-         mouseDown of its own, events go straight to the content view.
-         */
-        if event.type == .leftMouseDown {
+        switch event.type {
+        case .leftMouseDown:
             logInfo("[SnipTools] Pin mouseDown, appActive=\(NSApp.isActive)")
+            dragStartMouse = NSEvent.mouseLocation
+            dragStartOrigin = frame.origin
+        case .leftMouseDragged:
+            if let start = dragStartMouse, let origin = dragStartOrigin {
+                let now = NSEvent.mouseLocation
+                setFrameOrigin(
+                    NSPoint(x: origin.x + now.x - start.x, y: origin.y + now.y - start.y)
+                )
+            }
+        case .leftMouseUp:
+            dragStartMouse = nil
+            dragStartOrigin = nil
+        default:
+            break
         }
         super.sendEvent(event)
     }
@@ -146,4 +152,19 @@ final class PinImagePanel: NSPanel {
         PinImageManager.shared.noteViewPinchHandled(on: self)
         zoom(by: 1 + magnification)
     }
+
+    // MARK: Private
+
+    /*
+     Manual window dragging at the event-pump level. The system's
+     isMovableByWindowBackground cannot work here: the double-tap close
+     gesture makes the SwiftUI hit-test view report "interactive", and the
+     window then never starts a background drag (verified: clicks arrived,
+     the frame never moved). sendEvent is the one hook that sees every mouse
+     event reaching this window regardless of hit-testing, so dragging is
+     implemented here; forwarding to super keeps the double tap, wheel zoom
+     and pinch working untouched.
+     */
+    private var dragStartMouse: NSPoint?
+    private var dragStartOrigin: NSPoint?
 }
