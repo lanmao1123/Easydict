@@ -123,7 +123,10 @@ final class ClaudeCodeRunner: @unchecked Sendable {
     ///
     /// Claude settings sources remain disabled, but the user's configured
     /// `env` block is injected explicitly so auth and proxy settings still
-    /// reach the subprocess.
+    /// reach the subprocess. The directory holding `node` is prepended to
+    /// PATH: the installed `claude` is a `#!/usr/bin/env node` script, and
+    /// GUI/login-launched apps run without the user's shell PATH, which made
+    /// the CLI die with "env: node: No such file or directory".
     static func buildProcessEnvironment(
         settingsURL: URL? = nil,
         inheritedEnvironment: [String: String] = ProcessInfo.processInfo.environment
@@ -136,7 +139,56 @@ final class ClaudeCodeRunner: @unchecked Sendable {
             processEnvironment[key] = value
         }
 
+        if let nodeDirectory = resolveNodeDirectory() {
+            let currentPath = processEnvironment["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
+            let elements = currentPath.split(separator: ":").map(String.init)
+            if !elements.contains(nodeDirectory) {
+                processEnvironment["PATH"] = ([nodeDirectory] + elements).joined(separator: ":")
+            }
+        }
+
         return processEnvironment
+    }
+
+    /// Locates the directory containing `node` the same resilient way the
+    /// claude binary is resolved: login shell first (GUI apps do not inherit
+    /// the user's shell PATH), then common install locations. Nil when node
+    /// is unavailable — the CLI cannot run without it anyway. The result is
+    /// memoized because the login-shell probe costs a shell startup.
+    static func resolveNodeDirectory() -> String? {
+        if nodeResolutionAttempted {
+            return cachedNodeDirectory
+        }
+
+        var resolved: String?
+        if let raw = runViaLoginShell("which node") {
+            let nodePath = raw
+                .components(separatedBy: "\n")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .first {
+                    !$0.isEmpty
+                        && URL(fileURLWithPath: $0).lastPathComponent == "node"
+                        && FileManager.default.isExecutableFile(atPath: $0)
+                }
+            if let nodePath {
+                resolved = (nodePath as NSString).deletingLastPathComponent
+            }
+        }
+
+        if resolved == nil {
+            let fallbacks = [
+                "/opt/homebrew/bin/node",
+                "/usr/local/bin/node",
+            ]
+            for candidate in fallbacks where FileManager.default.isExecutableFile(atPath: candidate) {
+                resolved = (candidate as NSString).deletingLastPathComponent
+                break
+            }
+        }
+
+        cachedNodeDirectory = resolved
+        nodeResolutionAttempted = true
+        return resolved
     }
 
     /// Runs `claude -p --print` with optimised flags and streams text delta chunks as they arrive.
@@ -374,6 +426,9 @@ final class ClaudeCodeRunner: @unchecked Sendable {
     private struct ClaudeUserSettings: Decodable {
         let env: [String: String]?
     }
+
+    private static var cachedNodeDirectory: String?
+    private static var nodeResolutionAttempted = false
 
     /// Cached path from the first successful `detectClaudeBinary()` call.
     /// Avoids spawning a login shell on every translation request.
