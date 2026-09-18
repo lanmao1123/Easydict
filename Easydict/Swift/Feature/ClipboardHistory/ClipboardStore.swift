@@ -198,6 +198,13 @@ final class ClipboardStore {
     }
 
     /// Newest-first listing; `since == nil` means the whole history.
+    ///
+    /// Keywords route by script: latin keywords use the FTS5 index, while
+    /// keywords containing CJK characters fall back to LIKE — FTS5's default
+    /// tokenizer never segments Han/Kana runs, so an indexed Chinese query
+    /// like 「宁静」 matches nothing (the whole sentence is one token). The
+    /// LIKE scan is a two-column full sweep over a personal-size history
+    /// (a few thousand rows), well under interactive latency.
     func entries(
         since: Date?,
         keyword: String? = nil,
@@ -206,29 +213,40 @@ final class ClipboardStore {
         limit: Int? = nil
     ) throws
         -> [ClipboardEntry] {
-        let usesFullTextSearch = keyword?.isEmpty == false && fullTextSearchAvailable
+        let trimmedKeyword = keyword?.isEmpty == false ? keyword : nil
+        let usesFullTextSearch = trimmedKeyword != nil
+            && fullTextSearchAvailable
+            && !trimmedKeyword!.containsCJK
+
         var sql: String
-        if usesFullTextSearch {
-            sql = "SELECT \(Self.qualifiedColumns) FROM entries JOIN entries_fts ON entries_fts.rowid = entries.id WHERE entries_fts MATCH ?"
-        } else {
-            sql = "SELECT \(Self.columns) FROM entries WHERE 1=1"
-        }
         var bindings: [String] = []
 
-        if let keyword, !keyword.isEmpty, usesFullTextSearch {
-            bindings.append(Self.fullTextQuery(for: keyword))
-            if !includesImageText {
-                sql += " AND entries.kind = 'text'"
+        if let keyword = trimmedKeyword {
+            if usesFullTextSearch {
+                sql = "SELECT \(Self.qualifiedColumns) FROM entries JOIN entries_fts ON entries_fts.rowid = entries.id WHERE entries_fts MATCH ?"
+                bindings.append(Self.fullTextQuery(for: keyword))
+                if !includesImageText {
+                    sql += " AND entries.kind = 'text'"
+                }
+            } else {
+                let pattern = "%\(Self.escapeLike(keyword))%"
+                if includesImageText {
+                    sql =
+                        "SELECT \(Self.columns) FROM entries WHERE (IFNULL(text, '') LIKE ? ESCAPE '\\' OR IFNULL(ocr_text, '') LIKE ? ESCAPE '\\')"
+                    bindings = [pattern, pattern]
+                } else {
+                    sql =
+                        "SELECT \(Self.columns) FROM entries WHERE kind = 'text' AND text LIKE ? ESCAPE '\\'"
+                    bindings = [pattern]
+                }
             }
+        } else {
+            sql = "SELECT \(Self.columns) FROM entries WHERE 1=1"
         }
 
         if let since {
             sql += " AND created_at >= ?"
             bindings.append(String(since.timeIntervalSince1970))
-        }
-        if let keyword, !keyword.isEmpty, !usesFullTextSearch {
-            sql += " AND kind = 'text' AND text LIKE '%' || ? || '%'"
-            bindings.append(keyword)
         }
         switch kind {
         case .all:
@@ -445,6 +463,14 @@ final class ClipboardStore {
     private var db: OpaquePointer?
     private var fullTextSearchAvailable = false
 
+    /// Escapes LIKE wildcards so a keyword like "50%" matches literally.
+    private static func escapeLike(_ keyword: String) -> String {
+        keyword
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "%", with: "\\%")
+            .replacingOccurrences(of: "_", with: "\\_")
+    }
+
     private static func fullTextQuery(for keyword: String) -> String {
         keyword
             .split(whereSeparator: \.isWhitespace)
@@ -655,3 +681,21 @@ final class ClipboardStore {
 }
 
 private let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+
+// MARK: - CJK Detection
+
+/// True when the string contains CJK characters (Han, Kana, Hangul) —
+/// exactly the scripts FTS5's default unicode61 tokenizer cannot segment,
+/// which is why CJK keywords take the LIKE search path instead.
+extension String {
+    fileprivate var containsCJK: Bool {
+        unicodeScalars.contains { scalar in
+            let v = scalar.value
+            return (0x4E00 ... 0x9FFF).contains(v) // CJK Unified Ideographs
+                || (0x3400 ... 0x4DBF).contains(v) // Extension A
+                || (0xF900 ... 0xFAFF).contains(v) // Compatibility Ideographs
+                || (0x3040 ... 0x30FF).contains(v) // Hiragana + Katakana
+                || (0xAC00 ... 0xD7AF).contains(v) // Hangul syllables
+        }
+    }
+}

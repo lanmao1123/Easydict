@@ -85,6 +85,48 @@ struct ClipboardStoreTests {
         #expect(none.isEmpty)
     }
 
+    /// FTS5's unicode61 tokenizer never segments CJK runs — an indexed
+    /// Chinese query used to match nothing. CJK keywords now take the LIKE
+    /// path, for both text entries and image OCR text.
+    @Test("CJK keyword search matches text and image OCR text", .tags(.clipboard, .unit))
+    func testCJKKeywordSearch() throws {
+        let context = try makeStore()
+
+        try context.store.insertText("微信昵称：宁静致远", sourceApp: nil, sourceBundleID: nil)
+        let imageID = try context.store.insertImage(
+            imageFile: "member.png",
+            thumbFile: nil,
+            pixelWidth: 756,
+            pixelHeight: 491,
+            byteCount: 8,
+            contentHash: "member-hash",
+            sourceApp: nil,
+            sourceBundleID: nil
+        )
+        try context.store.updateImageOCRText(
+            "全部会员 微信昵称：宁静致远 编号：ANecOOVO", forEntryID: imageID
+        )
+
+        // Text scope: only the text entry matches.
+        let textOnly = try context.store.entries(
+            since: nil, keyword: "宁静", includesImageText: false
+        )
+        #expect(textOnly.count == 1)
+        #expect(textOnly.first?.text == "微信昵称：宁静致远")
+
+        // Text + image scope: both entries match via their CJK content.
+        let withImages = try context.store.entries(
+            since: nil, keyword: "宁静", includesImageText: true
+        )
+        #expect(withImages.count == 2)
+
+        // An unrelated keyword still matches nothing.
+        let none = try context.store.entries(
+            since: nil, keyword: "不存在词", includesImageText: true
+        )
+        #expect(none.isEmpty)
+    }
+
     // MARK: Kind filter
 
     @Test("Kind filter narrows to text or image rows", .tags(.clipboard, .unit))
