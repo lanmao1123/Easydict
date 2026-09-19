@@ -434,6 +434,9 @@ private struct ClipboardRowView: View {
                 .fill(isSelected ? Color.accentColor.opacity(0.16) : Color.clear)
         )
         .contentShape(Rectangle())
+        .task(id: entry.id) {
+            thumbnailImage = await loadThumbnail()
+        }
     }
 
     // MARK: Private
@@ -444,6 +447,10 @@ private struct ClipboardRowView: View {
         return formatter
     }()
 
+    private static let thumbnailPixelSize = 160
+
+    @State private var thumbnailImage: NSImage?
+
     private var rowTitle: String {
         if !entry.preview.isEmpty { return entry.preview }
         return entry.kind == .image
@@ -451,12 +458,14 @@ private struct ClipboardRowView: View {
             : ""
     }
 
+    private var thumbnailURL: URL? {
+        let store = ClipboardMonitor.shared.store
+        return store?.thumbImageURL(for: entry) ?? store?.imageURL(for: entry)
+    }
+
     @ViewBuilder
     private var thumbnail: some View {
-        if entry.kind == .image,
-           let url = ClipboardMonitor.shared.store?.thumbImageURL(for: entry)
-           ?? ClipboardMonitor.shared.store?.imageURL(for: entry),
-           let image = NSImage(contentsOf: url) {
+        if entry.kind == .image, let image = thumbnailImage {
             Image(nsImage: image)
                 .resizable()
                 .scaledToFit()
@@ -465,6 +474,15 @@ private struct ClipboardRowView: View {
                 .font(.system(size: 16))
                 .foregroundStyle(.secondary)
         }
+    }
+
+    private func loadThumbnail() async -> NSImage? {
+        guard entry.kind == .image, let url = thumbnailURL else { return nil }
+        return await ClipboardImageLoader.shared.image(
+            at: url,
+            cacheIdentity: url.lastPathComponent,
+            maxPixel: Self.thumbnailPixelSize
+        )
     }
 }
 
@@ -483,6 +501,9 @@ private struct ClipboardPreviewPane: View {
             infoList
                 .padding(12)
         }
+        .task(id: entry.id) {
+            previewImage = await loadPreviewImage()
+        }
     }
 
     // MARK: Private
@@ -493,6 +514,14 @@ private struct ClipboardPreviewPane: View {
         formatter.dateFormat = "MM-dd HH:mm"
         return formatter
     }()
+
+    private static let previewPixelSize = 1_600
+
+    @State private var previewImage: NSImage?
+
+    private var previewURL: URL? {
+        ClipboardMonitor.shared.store?.imageURL(for: entry)
+    }
 
     @ViewBuilder
     private var content: some View {
@@ -508,8 +537,7 @@ private struct ClipboardPreviewPane: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .padding(12)
         case .image:
-            if let url = ClipboardMonitor.shared.store?.imageURL(for: entry),
-               let image = NSImage(contentsOf: url) {
+            if entry.kind == .image, let image = previewImage {
                 Image(nsImage: image)
                     .resizable()
                     .scaledToFit()
@@ -551,6 +579,15 @@ private struct ClipboardPreviewPane: View {
             Text(value)
                 .font(.system(size: 11, weight: .medium))
         }
+    }
+
+    private func loadPreviewImage() async -> NSImage? {
+        guard entry.kind == .image, let url = previewURL else { return nil }
+        return await ClipboardImageLoader.shared.image(
+            at: url,
+            cacheIdentity: url.lastPathComponent,
+            maxPixel: Self.previewPixelSize
+        )
     }
 }
 

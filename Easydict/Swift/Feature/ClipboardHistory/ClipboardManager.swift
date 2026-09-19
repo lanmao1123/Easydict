@@ -111,6 +111,7 @@ final class ClipboardManager: NSObject {
         guard let store = ClipboardMonitor.shared.store else { return false }
         do {
             try store.delete(id: entry.id)
+            ClipboardImageLoader.shared.removeImages(fileNames: [entry.imageFile, entry.thumbFile])
             panel?.reload()
             logInfo("[Clipboard] Deleted entry id=\(entry.id)")
             return true
@@ -125,6 +126,7 @@ final class ClipboardManager: NSObject {
         guard let store = ClipboardMonitor.shared.store else { return false }
         do {
             try store.deleteAllEntries()
+            ClipboardImageLoader.shared.clear()
             panel?.reload()
             return true
         } catch {

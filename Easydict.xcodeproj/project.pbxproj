@@ -482,6 +482,7 @@
 		0D0C4B0000000000000000E5 /* ClipboardAutoPaster.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000EC /* ClipboardAutoPaster.swift */; };
 		0D0C4B0000000000000000E6 /* ClipboardPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000ED /* ClipboardPanel.swift */; };
 		0D0C4B0000000000000000E7 /* ClipboardHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000EE /* ClipboardHistoryView.swift */; };
+		0D0C4B0000000000000000F7 /* ClipboardImageLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000F6 /* ClipboardImageLoader.swift */; };
 		0D0C4B0000000000000000EF /* ClipboardStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0C4B0000000000000000F0 /* ClipboardStoreTests.swift */; };
 		03DB07162F0C2CDD00D2C68C /* DetectManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03DB07152F0C2CDD00D2C68C /* DetectManager.swift */; };
 		03DC38C1292CC97900922CB2 /* QueryServiceConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03F60B4F2F4C123400123456 /* QueryServiceConfiguration.swift */; };
@@ -1275,6 +1276,7 @@
 		0D0C4B0000000000000000EC /* ClipboardAutoPaster.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardAutoPaster.swift; sourceTree = "<group>"; };
 		0D0C4B0000000000000000ED /* ClipboardPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardPanel.swift; sourceTree = "<group>"; };
 		0D0C4B0000000000000000EE /* ClipboardHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardHistoryView.swift; sourceTree = "<group>"; };
+		0D0C4B0000000000000000F6 /* ClipboardImageLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardImageLoader.swift; sourceTree = "<group>"; };
 		0D0C4B0000000000000000F0 /* ClipboardStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ClipboardHistory/ClipboardStoreTests.swift"; sourceTree = "<group>"; };
 		03DB07152F0C2CDD00D2C68C /* DetectManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectManager.swift; sourceTree = "<group>"; };
 		03DC7C5C2A3ABE28000BF7C9 /* EZConstKey.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = EZConstKey.h; sourceTree = "<group>"; };
@@ -2087,6 +2089,7 @@
 				0D0C4B0000000000000000EC /* ClipboardAutoPaster.swift */,
 				0D0C4B0000000000000000ED /* ClipboardPanel.swift */,
 				0D0C4B0000000000000000EE /* ClipboardHistoryView.swift */,
+				0D0C4B0000000000000000F6 /* ClipboardImageLoader.swift */,
 			);
 			path = ClipboardHistory;
 			sourceTree = "<group>";
@@ -4683,6 +4686,7 @@
 				0D0C4B0000000000000000E5 /* ClipboardAutoPaster.swift in Sources */,
 				0D0C4B0000000000000000E6 /* ClipboardPanel.swift in Sources */,
 				0D0C4B0000000000000000E7 /* ClipboardHistoryView.swift in Sources */,
+				0D0C4B0000000000000000F7 /* ClipboardImageLoader.swift in Sources */,
 				0D0C4B0000000000000000A7 /* PasteboardPathService.swift in Sources */,
 				0D0C4B0000000000000000A8 /* PinImageManager.swift in Sources */,
 				0D0C4B0000000000000000A9 /* PinImagePanel.swift in Sources */,

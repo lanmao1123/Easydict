@@ -66,6 +66,7 @@ final class ClipboardMonitor: NSObject {
                 DispatchQueue.main.async {
                     let previous = self.store
                     self.store = newStore
+                    ClipboardImageLoader.shared.clear()
                     previous?.close()
                     logInfo("[Clipboard] Store switched to \(url.path)")
                     completion(true)
