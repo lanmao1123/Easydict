@@ -30,7 +30,7 @@ struct ServiceTab: View {
                     .listStyle(.plain)
                     .scrollIndicators(.never)
                     .borderedCard()
-                    .overlay(alignment: .bottom) {
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
                         Text("service_tab_fallback_note")
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)

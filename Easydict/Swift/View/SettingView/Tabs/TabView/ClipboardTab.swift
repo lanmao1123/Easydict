@@ -36,14 +36,19 @@ struct ClipboardTab: View {
                     Text("setting.clipboard.storage")
                     Text(storePath)
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .textSelection(.enabled)
                     if let storageSize {
                         Text("setting.clipboard.usage \(storageSize)")
                             .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                     HStack {
+                        if storageSize == nil || isMovingStore {
+                            ProgressView()
+                                .controlSize(.small)
+                                .accessibilityLabel(Text("setting.clipboard.storage"))
+                        }
                         Spacer()
                         Button("setting.clipboard.reveal") {
                             revealInFinder()
@@ -51,6 +56,7 @@ struct ClipboardTab: View {
                         Button("setting.clipboard.choose") {
                             chooseDirectory()
                         }
+                        .disabled(isMovingStore)
                     }
                 }
                 .padding(.vertical, 2)
@@ -63,7 +69,23 @@ struct ClipboardTab: View {
         .formStyle(.grouped)
         .onAppear {
             storePath = activeStorePath()
-            recalcStorageSize()
+        }
+        .task(id: storePath) {
+            storageSize = nil
+            guard !storePath.isEmpty else { return }
+            let directory = URL(fileURLWithPath: storePath, isDirectory: true)
+            let calculation = Task.detached(priority: .utility) {
+                Self.directorySize(directory)
+            }
+            let total = await withTaskCancellationHandler {
+                await calculation.value
+            } onCancel: {
+                calculation.cancel()
+            }
+            guard !Task.isCancelled, let total else { return }
+            let formatter = ByteCountFormatter()
+            formatter.countStyle = .file
+            storageSize = formatter.string(fromByteCount: total)
         }
     }
 
@@ -76,33 +98,22 @@ struct ClipboardTab: View {
 
     @State private var storePath = ""
     @State private var storageSize: String?
+    @State private var isMovingStore = false
 
-    private static func directorySize(_ url: URL) -> Int64 {
+    /// Stops enumerating as soon as the tab disappears or its directory changes.
+    private static func directorySize(_ url: URL) -> Int64? {
         let fm = FileManager.default
         var total: Int64 = 0
         guard let enumerator = fm.enumerator(
             at: url, includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey]
         ) else { return 0 }
         for case let fileURL as URL in enumerator {
+            guard !Task.isCancelled else { return nil }
             guard let values = try? fileURL.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey]),
                   values.isRegularFile == true else { continue }
             total += Int64(values.fileSize ?? 0)
         }
         return total
-    }
-
-    /// Sums regular-file sizes under the store directory off the main thread,
-    /// then formats the total in the user's byte units.
-    private func recalcStorageSize() {
-        guard let directory = ClipboardMonitor.shared.store?.directory else { return }
-        DispatchQueue.global(qos: .utility).async {
-            let total = Self.directorySize(directory)
-            DispatchQueue.main.async {
-                let formatter = ByteCountFormatter()
-                formatter.countStyle = .file
-                storageSize = formatter.string(fromByteCount: total)
-            }
-        }
     }
 
     private func activeStorePath() -> String {
@@ -126,9 +137,10 @@ struct ClipboardTab: View {
         panel.directoryURL = ClipboardMonitor.shared.store?.directory
         panel.begin { response in
             guard response == .OK, let url = panel.url else { return }
+            isMovingStore = true
             ClipboardMonitor.shared.changeStoreDirectory(to: url) { success in
+                isMovingStore = false
                 storePath = activeStorePath()
-                recalcStorageSize()
                 if success {
                     UserDefaults.standard.set(url.path, forKey: ClipboardMonitor.storePathKey)
                     EZToast.showText(NSLocalizedString("setting.clipboard.moved", comment: ""))

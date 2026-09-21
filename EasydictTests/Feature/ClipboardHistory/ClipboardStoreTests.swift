@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import SQLite3
 import Testing
 
 @testable import Easydict
@@ -293,6 +294,126 @@ struct ClipboardStoreTests {
         #expect(try context.store.count() == 3)
     }
 
+    // MARK: Failure recovery
+
+    @Test("Whitespace-only searches preserve unfiltered image and text results", .tags(.clipboard, .unit))
+    func testWhitespaceOnlySearch() throws {
+        let context = try makeStore()
+        try context.store.insertText("note", sourceApp: nil, sourceBundleID: nil)
+        _ = try insertImagePayload(context, name: "search", hash: "search-hash")
+        let expectedIDs = try context.store.entries(since: nil).map(\.id)
+
+        for keyword in ["", "   ", "\n\t ", "　"] {
+            #expect(try context.store.entries(since: nil, keyword: keyword).map(\.id) == expectedIDs)
+            #expect(try context.store.entries(since: nil, keyword: keyword, kind: .image).count == 1)
+        }
+    }
+
+    @Test("A failed duplicate text insert preserves the original row and search index", .tags(.clipboard, .unit))
+    func testTextDedupRollsBackFailedInsert() throws {
+        let context = try makeStore()
+        let originalDate = Date(timeIntervalSince1970: 1000)
+        try context.store.insertText("original note", sourceApp: "Notes", sourceBundleID: nil, at: originalDate)
+        let original = try #require(context.store.entries(since: nil).first)
+        try executeSQL(context, sql: """
+        CREATE TRIGGER reject_insert BEFORE INSERT ON entries
+        BEGIN SELECT RAISE(ABORT, 'injected insert failure'); END;
+        """)
+
+        #expect(throws: ClipboardStoreError.self) {
+            try context.store.insertText("original note", sourceApp: "Other", sourceBundleID: nil)
+        }
+
+        let restored = try #require(context.store.entries(since: nil).first)
+        #expect(try context.store.count() == 1)
+        #expect(restored.id == original.id)
+        #expect(restored.createdAt == originalDate)
+        #expect(restored.sourceApp == "Notes")
+        #expect(try context.store.entries(since: nil, keyword: "original").map(\.id) == [original.id])
+        try executeSQL(context, sql: "DROP TRIGGER reject_insert")
+        try context.store.insertText("recovered", sourceApp: nil, sourceBundleID: nil)
+        #expect(try context.store.count() == 2)
+    }
+
+    @Test("A failed duplicate image insert preserves the original row and both files", .tags(.clipboard, .unit))
+    func testImageDedupRollsBackFailedInsert() throws {
+        let context = try makeStore()
+        let originalID = try insertImagePayload(context, name: "original", hash: "duplicate")
+        try executeSQL(context, sql: """
+        CREATE TRIGGER reject_insert BEFORE INSERT ON entries
+        BEGIN SELECT RAISE(ABORT, 'injected insert failure'); END;
+        """)
+
+        #expect(throws: ClipboardStoreError.self) {
+            try insertImagePayload(context, name: "replacement", hash: "duplicate")
+        }
+
+        let restored = try #require(context.store.entries(since: nil).first)
+        #expect(try context.store.count() == 1)
+        #expect(restored.id == originalID)
+        #expect(restored.imageFile == "original.png")
+        #expect(restored.thumbFile == "original-thumb.png")
+        try expectImagePayload(context, name: "original")
+    }
+
+    @Test("Duplicate images can reuse their image and thumbnail files", .tags(.clipboard, .unit))
+    func testImageDedupPreservesReusedFiles() throws {
+        let context = try makeStore()
+        _ = try insertImagePayload(context, name: "shared", hash: "duplicate")
+        let replacementID = try context.store.insertImage(
+            imageFile: "shared.png", thumbFile: "shared-thumb.png",
+            pixelWidth: 2, pixelHeight: 2, byteCount: 7,
+            contentHash: "duplicate", sourceApp: "Updated", sourceBundleID: nil
+        )
+
+        let entries = try context.store.entries(since: nil)
+        #expect(entries.map(\.id) == [replacementID])
+        #expect(entries.first?.sourceApp == "Updated")
+        try expectImagePayload(context, name: "shared")
+    }
+
+    @Test(
+        "Failed deletions preserve all rows, images and thumbnails",
+        .tags(.clipboard, .unit),
+        arguments: ["entry", "oldImages", "allEntries"]
+    )
+    func testFailedDeletePreservesFiles(operation: String) throws {
+        let context = try makeStore()
+        let firstID = try insertImagePayload(context, name: "first", hash: "first")
+        let secondID = try insertImagePayload(context, name: "second", hash: "second")
+        try context.store.insertText("keep text", sourceApp: nil, sourceBundleID: nil)
+        let originalIDs = try context.store.entries(since: nil).map(\.id)
+        // Reject the second image so a bulk deletion must also restore earlier rows.
+        try executeSQL(context, sql: """
+        CREATE TRIGGER reject_delete BEFORE DELETE ON entries WHEN OLD.id = \(secondID)
+        BEGIN SELECT RAISE(ABORT, 'injected delete failure'); END;
+        """)
+
+        #expect(throws: ClipboardStoreError.self) {
+            switch operation {
+            case "entry":
+                try context.store.delete(id: secondID)
+            case "oldImages":
+                _ = try context.store.deleteImages(olderThan: Date.distantFuture)
+            default:
+                _ = try context.store.deleteAllEntries()
+            }
+        }
+
+        #expect(try context.store.entries(since: nil).map(\.id) == originalIDs)
+        try expectImagePayload(context, name: "first")
+        try expectImagePayload(context, name: "second")
+        try executeSQL(context, sql: "DROP TRIGGER reject_delete")
+        try context.store.delete(id: firstID)
+        #expect(try context.store.count() == 2)
+        #expect(!FileManager.default.fileExists(
+            atPath: context.store.imagesDirectory.appendingPathComponent("first.png").path
+        ))
+        #expect(!FileManager.default.fileExists(
+            atPath: context.store.imagesDirectory.appendingPathComponent("first-thumb.png").path
+        ))
+    }
+
     // MARK: Preview building
 
     @Test("Preview takes the first line and caps its length", .tags(.clipboard, .unit))
@@ -316,6 +437,36 @@ struct ClipboardStoreTests {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("ezd-clip-tests-\(UUID().uuidString)", isDirectory: true)
         return StoreContext(store: try ClipboardStore(directory: dir))
+    }
+
+    /// Uses a separate connection to inject SQLite failures without production hooks.
+    private func executeSQL(_ context: StoreContext, sql: String) throws {
+        var database: OpaquePointer?
+        let path = context.store.directory.appendingPathComponent("history.db").path
+        let status = sqlite3_open_v2(path, &database, SQLITE_OPEN_READWRITE, nil)
+        defer { sqlite3_close_v2(database) }
+        try #require(status == SQLITE_OK)
+        let result = sqlite3_exec(database, sql, nil, nil, nil)
+        let message = String(cString: sqlite3_errmsg(database))
+        try #require(result == SQLITE_OK, "SQLite fixture failed: \(message)")
+    }
+
+    private func insertImagePayload(_ context: StoreContext, name: String, hash: String) throws -> Int64 {
+        for filename in ["\(name).png", "\(name)-thumb.png"] {
+            try Data(filename.utf8).write(to: context.store.imagesDirectory.appendingPathComponent(filename))
+        }
+        return try context.store.insertImage(
+            imageFile: "\(name).png", thumbFile: "\(name)-thumb.png",
+            pixelWidth: 2, pixelHeight: 2, byteCount: 7,
+            contentHash: hash, sourceApp: nil, sourceBundleID: nil
+        )
+    }
+
+    private func expectImagePayload(_ context: StoreContext, name: String) throws {
+        for filename in ["\(name).png", "\(name)-thumb.png"] {
+            let contents = try Data(contentsOf: context.store.imagesDirectory.appendingPathComponent(filename))
+            #expect(contents == Data(filename.utf8))
+        }
     }
 
     private func writePayload(_ context: StoreContext, name: String) -> Data {

@@ -43,9 +43,9 @@ enum ClipboardStoreError: Error {
 /// SQLite-backed permanent clipboard history under one folder: an `entries`
 /// table plus an `images/` folder holding the image payloads.
 ///
-/// All APIs are synchronous and serialized by the caller (ClipboardMonitor's
-/// store queue); the connection is opened with SQLite's full mutex so a stray
-/// cross-thread call cannot corrupt state.
+/// Database operations are synchronous and serialized across capture and UI
+/// callers. The operation lock covers complete transactions, since SQLite's
+/// full mutex alone only protects individual statements on the connection.
 final class ClipboardStore {
     // MARK: Lifecycle
 
@@ -90,6 +90,8 @@ final class ClipboardStore {
     /// Closes the SQLite connection. Only used when switching the store to a
     /// new directory; further calls on a closed store fail gracefully.
     func close() {
+        operationLock.lock()
+        defer { operationLock.unlock() }
         if let db {
             sqlite3_close_v2(db)
             self.db = nil
@@ -106,24 +108,27 @@ final class ClipboardStore {
         at date: Date = Date()
     ) throws
         -> Int64 {
+        operationLock.lock()
+        defer { operationLock.unlock() }
         let hash = Self.sha256(Data(text.utf8))
-        try removeEntries(matchingHash: hash)
-
-        return try insert(PendingRow(
-            kind: .text,
-            text: text,
-            ocrText: nil,
-            preview: text.clipboardPreview(),
-            imageFile: nil,
-            thumbFile: nil,
-            pixelWidth: nil,
-            pixelHeight: nil,
-            byteCount: text.utf8.count,
-            contentHash: hash,
-            sourceApp: sourceApp,
-            sourceBundleID: sourceBundleID,
-            createdAt: date
-        ))
+        return try transaction {
+            try removeEntries(matchingHash: hash)
+            return try insert(PendingRow(
+                kind: .text,
+                text: text,
+                ocrText: nil,
+                preview: text.clipboardPreview(),
+                imageFile: nil,
+                thumbFile: nil,
+                pixelWidth: nil,
+                pixelHeight: nil,
+                byteCount: text.utf8.count,
+                contentHash: hash,
+                sourceApp: sourceApp,
+                sourceBundleID: sourceBundleID,
+                createdAt: date
+            ))
+        }
     }
 
     /// High-level image insert; the payload is already on disk by the time
@@ -141,23 +146,36 @@ final class ClipboardStore {
         at date: Date = Date()
     ) throws
         -> Int64 {
-        try removeEntries(matchingHash: contentHash, alsoDeletingFiles: true)
-
-        return try insert(PendingRow(
-            kind: .image,
-            text: nil,
-            ocrText: nil,
-            preview: Self.imagePreviewTitle(width: pixelWidth, height: pixelHeight),
-            imageFile: imageFile,
-            thumbFile: thumbFile,
-            pixelWidth: pixelWidth,
-            pixelHeight: pixelHeight,
-            byteCount: byteCount,
-            contentHash: contentHash,
-            sourceApp: sourceApp,
-            sourceBundleID: sourceBundleID,
-            createdAt: date
-        ))
+        operationLock.lock()
+        defer { operationLock.unlock() }
+        let twins = try query(
+            "SELECT \(Self.columns) FROM entries WHERE content_hash = ?",
+            bindings: [contentHash]
+        )
+        let id = try transaction {
+            try removeEntries(matchingHash: contentHash)
+            return try insert(PendingRow(
+                kind: .image,
+                text: nil,
+                ocrText: nil,
+                preview: Self.imagePreviewTitle(width: pixelWidth, height: pixelHeight),
+                imageFile: imageFile,
+                thumbFile: thumbFile,
+                pixelWidth: pixelWidth,
+                pixelHeight: pixelHeight,
+                byteCount: byteCount,
+                contentHash: contentHash,
+                sourceApp: sourceApp,
+                sourceBundleID: sourceBundleID,
+                createdAt: date
+            ))
+        }
+        // Only discard old payloads after the replacement is committed.
+        let retainedFiles = Set([imageFile, thumbFile].compactMap { $0 })
+        for entry in twins {
+            removeFiles(of: entry, excluding: retainedFiles)
+        }
+        return id
     }
 
     /// Keeps the text history bounded: drops text rows beyond the newest
@@ -170,6 +188,8 @@ final class ClipboardStore {
         ageLimit: TimeInterval = 90 * 24 * 3600
     ) throws
         -> Int {
+        operationLock.lock()
+        defer { operationLock.unlock() }
         let cutoff = Date().addingTimeInterval(-ageLimit).timeIntervalSince1970
         let sql = """
         DELETE FROM entries
@@ -213,7 +233,10 @@ final class ClipboardStore {
         limit: Int? = nil
     ) throws
         -> [ClipboardEntry] {
-        let trimmedKeyword = keyword?.isEmpty == false ? keyword : nil
+        operationLock.lock()
+        defer { operationLock.unlock() }
+        let normalizedKeyword = keyword?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedKeyword = normalizedKeyword?.isEmpty == false ? normalizedKeyword : nil
         let usesFullTextSearch = trimmedKeyword != nil
             && fullTextSearchAvailable
             && !trimmedKeyword!.containsCJK
@@ -265,24 +288,29 @@ final class ClipboardStore {
     }
 
     func delete(id: Int64) throws {
-        for entry in entries(withIDs: [id]) {
+        operationLock.lock()
+        defer { operationLock.unlock() }
+        let victims = try query("SELECT \(Self.columns) FROM entries WHERE id = \(id)", bindings: [])
+        try exec("DELETE FROM entries WHERE id = \(id)")
+        for entry in victims {
             removeFiles(of: entry)
         }
-        try exec("DELETE FROM entries WHERE id = \(id)")
     }
 
     /// Clears image payloads and their rows older than the cutoff without
     /// touching text entries. Returns the removed row count.
     @discardableResult
     func deleteImages(olderThan cutoff: Date) throws -> Int {
+        operationLock.lock()
+        defer { operationLock.unlock() }
         let victims = try query(
             "SELECT \(Self.columns) FROM entries WHERE kind = 'image' AND created_at < \(cutoff.timeIntervalSince1970)",
             bindings: []
         )
+        try exec("DELETE FROM entries WHERE kind = 'image' AND created_at < \(cutoff.timeIntervalSince1970)")
         for entry in victims {
             removeFiles(of: entry)
         }
-        try exec("DELETE FROM entries WHERE kind = 'image' AND created_at < \(cutoff.timeIntervalSince1970)")
         return victims.count
     }
 
@@ -290,17 +318,21 @@ final class ClipboardStore {
     /// side of the panel's "Clear all" action. Returns the removed row count.
     @discardableResult
     func deleteAllEntries() throws -> Int {
+        operationLock.lock()
+        defer { operationLock.unlock() }
         let victims = try query("SELECT \(Self.columns) FROM entries", bindings: [])
+        try exec("DELETE FROM entries")
         for entry in victims {
             removeFiles(of: entry)
         }
-        try exec("DELETE FROM entries")
         logInfo("[Clipboard] Cleared all entries, removed=\(victims.count)")
         return victims.count
     }
 
     /// SUM of image payload sizes — the number a capacity guard acts on.
     func totalImageBytes() throws -> Int {
+        operationLock.lock()
+        defer { operationLock.unlock() }
         var statement: OpaquePointer?
         defer { sqlite3_finalize(statement) }
         guard sqlite3_prepare_v2(
@@ -318,6 +350,8 @@ final class ClipboardStore {
 
     /// Number of stored image rows — the count-driven eviction gauge.
     func imageCount() throws -> Int {
+        operationLock.lock()
+        defer { operationLock.unlock() }
         var statement: OpaquePointer?
         defer { sqlite3_finalize(statement) }
         guard sqlite3_prepare_v2(
@@ -331,13 +365,17 @@ final class ClipboardStore {
 
     /// Image rows oldest-first, for capacity-driven eviction.
     func oldestImages(limit: Int) throws -> [ClipboardEntry] {
-        try query(
+        operationLock.lock()
+        defer { operationLock.unlock() }
+        return try query(
             "SELECT \(Self.columns) FROM entries WHERE kind = 'image' ORDER BY created_at ASC LIMIT \(limit)",
             bindings: []
         )
     }
 
     func count() throws -> Int {
+        operationLock.lock()
+        defer { operationLock.unlock() }
         var statement: OpaquePointer?
         defer { sqlite3_finalize(statement) }
         guard sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM entries", -1, &statement, nil) == SQLITE_OK else {
@@ -350,7 +388,9 @@ final class ClipboardStore {
     /// Returns image entries that have not been OCR-indexed yet. Empty text is
     /// persisted after a completed no-text recognition, so it is not retried.
     func unindexedImages(limit: Int = 200) throws -> [ClipboardEntry] {
-        try query(
+        operationLock.lock()
+        defer { operationLock.unlock() }
+        return try query(
             "SELECT \(Self.columns) FROM entries WHERE kind = 'image' AND ocr_text IS NULL ORDER BY created_at DESC LIMIT \(limit)",
             bindings: []
         )
@@ -359,6 +399,8 @@ final class ClipboardStore {
     /// Stores a completed background OCR result and lets the FTS trigger keep
     /// the text/image search index in sync.
     func updateImageOCRText(_ text: String, forEntryID id: Int64) throws {
+        operationLock.lock()
+        defer { operationLock.unlock() }
         var statement: OpaquePointer?
         defer { sqlite3_finalize(statement) }
         guard sqlite3_prepare_v2(
@@ -460,6 +502,7 @@ final class ClipboardStore {
         return formatter
     }()
 
+    private let operationLock = NSRecursiveLock()
     private var db: OpaquePointer?
     private var fullTextSearchAvailable = false
 
@@ -583,16 +626,7 @@ final class ClipboardStore {
         return sqlite3_last_insert_rowid(db)
     }
 
-    private func removeEntries(matchingHash hash: String, alsoDeletingFiles: Bool = false) throws {
-        let twins = try query(
-            "SELECT \(Self.columns) FROM entries WHERE content_hash = ?",
-            bindings: [hash]
-        )
-        if alsoDeletingFiles {
-            for entry in twins {
-                removeFiles(of: entry)
-            }
-        }
+    private func removeEntries(matchingHash hash: String) throws {
         var statement: OpaquePointer?
         defer { sqlite3_finalize(statement) }
         guard sqlite3_prepare_v2(db, "DELETE FROM entries WHERE content_hash = ?", -1, &statement, nil) == SQLITE_OK
@@ -605,10 +639,17 @@ final class ClipboardStore {
         }
     }
 
-    private func entries(withIDs ids: [Int64]) -> [ClipboardEntry] {
-        guard !ids.isEmpty else { return [] }
-        let list = ids.map(String.init).joined(separator: ",")
-        return (try? query("SELECT \(Self.columns) FROM entries WHERE id IN (\(list))", bindings: [])) ?? []
+    /// Rolls back deduplication if the replacement cannot be persisted.
+    private func transaction<T>(_ operation: () throws -> T) throws -> T {
+        try exec("BEGIN IMMEDIATE TRANSACTION")
+        do {
+            let result = try operation()
+            try exec("COMMIT")
+            return result
+        } catch {
+            try? exec("ROLLBACK")
+            throw error
+        }
     }
 
     private func query(_ sql: String, bindings: [String]) throws -> [ClipboardEntry] {
@@ -623,8 +664,13 @@ final class ClipboardStore {
         }
 
         var result: [ClipboardEntry] = []
-        while sqlite3_step(statement) == SQLITE_ROW {
+        var status = sqlite3_step(statement)
+        while status == SQLITE_ROW {
             result.append(readRow(statement))
+            status = sqlite3_step(statement)
+        }
+        guard status == SQLITE_DONE else {
+            throw ClipboardStoreError.execFailed(String(cString: sqlite3_errmsg(db)))
         }
         return result
     }
@@ -673,8 +719,8 @@ final class ClipboardStore {
         }
     }
 
-    private func removeFiles(of entry: ClipboardEntry) {
-        for file in [entry.imageFile, entry.thumbFile].compactMap({ $0 }) {
+    private func removeFiles(of entry: ClipboardEntry, excluding retainedFiles: Set<String> = []) {
+        for file in [entry.imageFile, entry.thumbFile].compactMap({ $0 }) where !retainedFiles.contains(file) {
             try? FileManager.default.removeItem(at: imagesDirectory.appendingPathComponent(file))
         }
     }

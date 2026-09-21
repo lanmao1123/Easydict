@@ -6,10 +6,12 @@
 //  Copyright © 2023 izual. All rights reserved.
 //
 
+import SFSafeSymbols
 import SwiftUI
 
 // MARK: - SettingTab
 
+/// The existing settings destinations and their localized navigation labels.
 enum SettingTab: Int, Identifiable {
     case general
     case screenshot
@@ -35,22 +37,34 @@ enum SettingTab: Int, Identifiable {
         }
     }
 
-    var systemImage: String {
+    var symbol: SFSymbol {
         switch self {
-        case .general: "gear"
-        case .screenshot: "camera.viewfinder"
-        case .clipboard: "clipboard"
-        case .ocr: "doc.text.magnifyingglass"
-        case .shortcut: "command.square"
-        case .service: "translate"
-        case .about: "info.bubble"
+        case .general: .gearshape
+        case .screenshot: .cameraViewfinder
+        case .clipboard: .clipboard
+        case .ocr: .docTextMagnifyingglass
+        case .shortcut: .commandSquare
+        case .service: .characterBubble
+        case .about: .infoCircle
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .general: .gray
+        case .screenshot: .blue
+        case .clipboard: .orange
+        case .ocr: .purple
+        case .shortcut: .pink
+        case .service: .green
+        case .about: .indigo
         }
     }
 }
 
 // MARK: - SettingSidebarGroup
 
-/// Sidebar sections in the Bob-style settings layout.
+/// Groups related settings while keeping every destination visible.
 private enum SettingSidebarGroup: String, CaseIterable, Identifiable {
     case general
     case features
@@ -79,6 +93,7 @@ private enum SettingSidebarGroup: String, CaseIterable, Identifiable {
 
 // MARK: - SettingView
 
+/// A stable settings window with keyboard-accessible navigation and grouped forms.
 struct SettingView: View {
     // MARK: Internal
 
@@ -94,9 +109,6 @@ struct SettingView: View {
                 resizeWindowFrame()
             }))
         )
-        .onChange(of: selection) { _ in
-            resizeWindowFrame()
-        }
     }
 
     func resizeWindowFrame() {
@@ -105,22 +117,19 @@ struct SettingView: View {
         // Disable zoom button, refer: https://stackoverflow.com/a/66039864/8378840
         window.standardWindowButton(.zoomButton)?.isEnabled = false
 
-        // Keep the settings page Windows all the same width to avoid strange animations.
-        let maxWidth: Double = 900
-        let height: Double = switch selection {
-        case .about:
-            300
-        default:
-            maxWidth * 0.8
-        }
-
-        let newSize = CGSize(width: maxWidth, height: height)
-
+        // Keep every destination at the same size: shrinking About used to
+        // clip the navigation and make switching pages move the window.
+        let visibleFrame = (window.screen ?? NSScreen.main)?.visibleFrame ?? window.frame
+        let newSize = CGSize(
+            width: min(900, visibleFrame.width),
+            height: min(720, visibleFrame.height)
+        )
         let originalFrame = window.frame
-        let newY = originalFrame.origin.y + originalFrame.size.height - newSize.height
-        let newRect = NSRect(origin: CGPoint(x: originalFrame.origin.x, y: newY), size: newSize)
-
-        window.setFrame(newRect, display: true, animate: false)
+        let origin = CGPoint(
+            x: min(max(originalFrame.minX, visibleFrame.minX), visibleFrame.maxX - newSize.width),
+            y: min(max(originalFrame.maxY - newSize.height, visibleFrame.minY), visibleFrame.maxY - newSize.height)
+        )
+        window.setFrame(NSRect(origin: origin, size: newSize), display: true, animate: false)
         // macOS 27: keep the sidebar below the title bar by removing the
         // `.fullSizeContentView` style SwiftUI keeps after resize. Older macOS
         // versions are unaffected.
@@ -133,79 +142,72 @@ struct SettingView: View {
 
     // MARK: Private
 
-    private static let sidebarWidth: Double = 176
+    private static let sidebarWidth: Double = 196
 
     @State private var selection = SettingTab.general
     @State private var window: NSWindow?
 
-    /// Grouped nav list on the left; the selected row is an accent capsule
-    /// with white text, matching the Bob settings layout.
     private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        List(selection: $selection) {
             ForEach(SettingSidebarGroup.allCases) { group in
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(group.titleKey)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 10)
-                        .padding(.bottom, 3)
-
+                Section {
                     ForEach(group.tabs) { tab in
-                        sidebarRow(tab)
+                        Label {
+                            Text(tab.titleKey)
+                                .font(.system(size: 13, weight: .medium))
+                                .lineLimit(2)
+                        } icon: {
+                            Image(systemSymbol: tab.symbol)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(width: 26, height: 26)
+                                .background(tab.color.gradient, in: RoundedRectangle(cornerRadius: 7))
+                        }
+                        .padding(.vertical, 4)
+                        .tag(tab)
                     }
+                } header: {
+                    Text(group.titleKey)
                 }
             }
-            Spacer()
         }
-        .padding(.top, 14)
-        .padding(.horizontal, 10)
-        .padding(.bottom, 12)
-        .frame(width: Self.sidebarWidth, alignment: .leading)
-        .background(Color.gray.opacity(0.08))
+        .listStyle(.sidebar)
+        .padding(.top, 8)
+        .frame(width: Self.sidebarWidth)
     }
 
     private var contentArea: some View {
-        Group {
-            switch selection {
-            case .general: GeneralTab()
-            case .screenshot: ScreenshotTab()
-            case .clipboard: ClipboardTab()
-            case .ocr: OCRTab()
-            case .shortcut: ShortcutTab()
-            case .service: ServiceTab()
-            case .about: AboutTab()
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Image(systemSymbol: selection.symbol)
+                    .font(.system(size: 19, weight: .medium))
+                    .foregroundStyle(selection.color)
+                Text(selection.titleKey)
+                    .font(.system(size: 22, weight: .semibold))
+                    .accessibilityAddTraits(.isHeader)
+                Spacer()
             }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 20)
+            Divider()
+            selectedContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .formStyle(.grouped)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        // Bob-style inset rounded cards for every Form-based tab.
-        .formStyle(.grouped)
         .background(Color(nsColor: .windowBackgroundColor))
     }
 
-    private func sidebarRow(_ tab: SettingTab) -> some View {
-        let isSelected = selection == tab
-        return Button {
-            selection = tab
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: tab.systemImage)
-                    .font(.system(size: 13))
-                    .frame(width: 16)
-                Text(tab.titleKey)
-                    .font(.system(size: 13))
-                    .lineLimit(1)
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background {
-                RoundedRectangle(cornerRadius: 7)
-                    .fill(isSelected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.clear))
-            }
-            .foregroundStyle(isSelected ? Color.white : Color.primary)
-            .contentShape(Rectangle())
+    @ViewBuilder
+    private var selectedContent: some View {
+        switch selection {
+        case .general: GeneralTab()
+        case .screenshot: ScreenshotTab()
+        case .clipboard: ClipboardTab()
+        case .ocr: OCRTab()
+        case .shortcut: ShortcutTab()
+        case .service: ServiceTab()
+        case .about: AboutTab()
         }
-        .buttonStyle(.plain)
     }
 }
 

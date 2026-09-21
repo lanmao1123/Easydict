@@ -88,7 +88,7 @@ struct ScreenshotTab: View {
                         Text("setting.screenshot.save_directory")
                         Text(saveDirectoryPath)
                             .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                             .textSelection(.enabled)
                         HStack {
                             Spacer()
@@ -113,7 +113,7 @@ struct ScreenshotTab: View {
                     HStack(alignment: .firstTextBaseline) {
                         Text("setting.screenshot.filename_template_desc")
                             .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                         Spacer()
                         Button("setting.screenshot.filename_reset") {
                             filenameTemplate = FilenameFormatter.defaultTemplate
@@ -122,8 +122,8 @@ struct ScreenshotTab: View {
                 }
                 .padding(.vertical, 2)
 
-                Picker("setting.screenshot.image_format", selection: $imageFormatRaw) {
-                    ForEach(ImageEncoder.Format.allCases, id: \.rawValue) { format in
+                Picker("setting.screenshot.image_format", selection: imageFormatSelection) {
+                    ForEach(ImageEncoder.availableFormats, id: \.rawValue) { format in
                         Text(format.displayName).tag(format.rawValue)
                     }
                 }
@@ -144,7 +144,7 @@ struct ScreenshotTab: View {
                     Text("setting.screenshot.pronunciation_prompt")
                     Text("setting.screenshot.pronunciation_prompt_desc")
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     TextEditor(text: $pronunciationPrompt)
                         .font(.system(size: 12, design: .monospaced))
                         .scrollContentBackground(.hidden)
@@ -167,6 +167,9 @@ struct ScreenshotTab: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear {
+            refreshSaveDirectoryPath()
+        }
     }
 
     // MARK: Private
@@ -197,12 +200,23 @@ struct ScreenshotTab: View {
     /// can be recognized the way the user's field actually says them.
     @Default(.dockPronunciationPrompt) private var pronunciationPrompt
 
+    /// Mirror the encoder's PNG fallback for a saved format unavailable on this OS.
+    private var imageFormatSelection: Binding<String> {
+        Binding {
+            let format = ImageEncoder.Format(rawValue: imageFormatRaw) ?? .png
+            return ImageEncoder.isFormatAvailable(format) ? format.rawValue : ImageEncoder.Format.png.rawValue
+        } set: {
+            imageFormatRaw = $0
+        }
+    }
+
     private func refreshSaveDirectoryPath() {
         saveDirectoryPath = (SaveDirectoryAccess.displayPath as NSString).expandingTildeInPath
     }
 
     private func revealSaveDirectory() {
         let url = SaveDirectoryAccess.resolve()
+        defer { SaveDirectoryAccess.stopAccessing(url: url) }
         NSWorkspace.shared.open(url)
     }
 

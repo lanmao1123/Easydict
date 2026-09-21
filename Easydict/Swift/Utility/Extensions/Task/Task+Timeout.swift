@@ -40,46 +40,52 @@ extension Task where Success == Never, Failure == Never {
         operation: @escaping @Sendable () async throws -> T
     ) async throws
         -> T {
+        try Task.checkCancellation()
         let normalizedSeconds = max(seconds, 0)
         guard normalizedSeconds > 0 else {
             throw TaskTimeoutError()
         }
 
         let operationTask = Task<T, Error> {
-            try await operation()
+            try Task.checkCancellation()
+            return try await operation()
         }
         let timeoutTask = Task<(), Error> {
             try await Task.sleepThrowing(seconds: normalizedSeconds)
             throw TaskTimeoutError()
         }
 
-        return try await withCheckedThrowingContinuation { continuation in
-            let continuationActor = TimeoutContinuationActor(continuation)
+        let continuationActor = TimeoutContinuationActor<T>()
 
-            // These two detached watchers wait on opposite sides of the race:
-            // one watches the operation result, the other watches the timeout result.
-            // Whichever side finishes first resumes the caller and cancels the loser.
-            // Use detached tasks so timeout delivery does not inherit a blocked caller actor.
-            _Concurrency.Task.detached {
-                do {
-                    let value = try await operationTask.value
-                    await continuationActor.resume(with: .success(value))
-                    timeoutTask.cancel()
-                } catch {
-                    await continuationActor.resume(with: .failure(error))
-                    timeoutTask.cancel()
-                }
+        // Detached watchers deliver timeouts even when the caller actor is busy.
+        _Concurrency.Task.detached {
+            do {
+                let value = try await operationTask.value
+                await continuationActor.resume(with: .success(value))
+            } catch {
+                await continuationActor.resume(with: .failure(error))
             }
+            timeoutTask.cancel()
+        }
 
-            _Concurrency.Task.detached {
-                do {
-                    try await timeoutTask.value
-                } catch is CancellationError {
-                    // The operation completed first, so the timeout watcher was cancelled on purpose.
-                } catch {
-                    await continuationActor.resume(with: .failure(error))
-                    operationTask.cancel()
-                }
+        _Concurrency.Task.detached {
+            do {
+                try await timeoutTask.value
+            } catch is CancellationError {
+                // Completion or parent cancellation intentionally stops this timer.
+            } catch {
+                await continuationActor.resume(with: .failure(error))
+                operationTask.cancel()
+            }
+        }
+
+        return try await withTaskCancellationHandler {
+            try await continuationActor.value()
+        } onCancel: {
+            operationTask.cancel()
+            timeoutTask.cancel()
+            _Concurrency.Task {
+                await continuationActor.resume(with: .failure(CancellationError()))
             }
         }
     }
@@ -92,27 +98,35 @@ extension Task where Success == Never, Failure == Never {
 /// The timeout watcher and operation watcher race on separate detached tasks. This actor ensures the
 /// checked continuation is resumed exactly once, even if both watchers complete almost simultaneously.
 private actor TimeoutContinuationActor<T: Sendable> {
-    // MARK: Lifecycle
-
-    init(_ continuation: CheckedContinuation<T, Error>) {
-        self.continuation = continuation
-    }
-
     // MARK: Internal
 
-    /// Resumes the stored continuation at most once.
-    ///
-    /// - Parameter result: The first race result to deliver.
-    func resume(with result: Result<T, Error>) {
-        guard let continuation else {
-            return
+    /// Handles cancellation or completion even before the waiter is registered.
+    func value() async throws -> T {
+        try await withCheckedThrowingContinuation { continuation in
+            if let pendingResult {
+                self.pendingResult = nil
+                continuation.resume(with: pendingResult)
+            } else {
+                self.continuation = continuation
+            }
         }
+    }
 
-        self.continuation = nil
-        continuation.resume(with: result)
+    /// The operation, timeout, and parent cancellation compete for one result.
+    func resume(with result: Result<T, Error>) {
+        guard !completed else { return }
+        completed = true
+        if let continuation {
+            self.continuation = nil
+            continuation.resume(with: result)
+        } else {
+            pendingResult = result
+        }
     }
 
     // MARK: Private
 
+    private var completed = false
+    private var pendingResult: Result<T, Error>?
     private var continuation: CheckedContinuation<T, Error>?
 }

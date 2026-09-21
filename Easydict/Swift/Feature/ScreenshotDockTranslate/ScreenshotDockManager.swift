@@ -144,6 +144,7 @@ final class ScreenshotDockManager: NSObject {
 
     private static let raycastBundleID = "com.raycast.macos"
 
+    private var layoutUpdatePending = false
     private var panel: ScreenshotDockPanel?
     private var highlightPanel: ScreenshotDockHighlightPanel?
     private let state = ScreenshotDockState()
@@ -287,6 +288,7 @@ final class ScreenshotDockManager: NSObject {
                     try Task.checkCancellation()
                     sourceLanguage = detectedModel.detectedLanguage
                 } catch {
+                    try Task.checkCancellation()
                     finishFailure(error.localizedDescription)
                     return
                 }
@@ -300,6 +302,7 @@ final class ScreenshotDockManager: NSObject {
             } catch is CancellationError {
                 logInfo("dock flow cancelled")
             } catch {
+                guard !Task.isCancelled else { return }
                 finishFailure(error.localizedDescription)
             }
         }
@@ -338,12 +341,14 @@ final class ScreenshotDockManager: NSObject {
                 try await translateSegmentsWithService(
                     sources, service: service, sourceLanguage: sourceLanguage
                 )
+                try Task.checkCancellation()
                 logInfo("dock translation succeeded via \(serviceName)")
                 completeFlow()
                 return
             } catch is CancellationError {
                 throw CancellationError()
             } catch {
+                try Task.checkCancellation()
                 lastError = error.localizedDescription
                 logWarn("dock service \(serviceName) failed: \(lastError), trying next")
                 // Reset any partial translations before the next attempt.
@@ -404,9 +409,11 @@ final class ScreenshotDockManager: NSObject {
                     updateSegment(index: index, translation: translated)
                 }
             } catch {
+                try Task.checkCancellation()
                 perSegmentErrors.append(error.localizedDescription)
             }
         }
+        try Task.checkCancellation()
         if !perSegmentErrors.isEmpty {
             throw QueryError(type: .api, message: perSegmentErrors.first!)
         }
@@ -451,8 +458,10 @@ final class ScreenshotDockManager: NSObject {
         guard !state.segments[index].pronunciationLoading else { return }
 
         state.segments[index].showPronunciation = true
+        let sessionID = activeSessionID
         Task { [weak self] in
-            await self?.loadPronunciation(index: index, revealOnDone: false)
+            guard let self, activeSessionID == sessionID else { return }
+            await loadPronunciation(index: index, revealOnDone: false)
         }
     }
 
@@ -465,6 +474,7 @@ final class ScreenshotDockManager: NSObject {
               !state.segments[index].pronunciationLoading
         else { return }
 
+        let sessionID = activeSessionID
         let source = state.segments[index].source
         state.segments[index].pronunciationLoading = true
         refreshLayout()
@@ -472,14 +482,16 @@ final class ScreenshotDockManager: NSObject {
         do {
             let pronunciation = try await PronunciationHelper.shared
                 .fetchPronunciation(for: source)
-            guard state.segments.indices.contains(index) else { return }
+            guard !Task.isCancelled, activeSessionID == sessionID,
+                  state.segments.indices.contains(index) else { return }
             state.segments[index].pronunciation = pronunciation
             state.segments[index].pronunciationLoading = false
             if revealOnDone {
                 state.segments[index].showPronunciation = true
             }
         } catch {
-            guard state.segments.indices.contains(index) else { return }
+            guard !Task.isCancelled, activeSessionID == sessionID,
+                  state.segments.indices.contains(index) else { return }
             state.segments[index].pronunciationLoading = false
             logWarn("[Pronunciation] fetch failed, index=\(index): \(error.localizedDescription)")
             if revealOnDone {
@@ -561,9 +573,12 @@ final class ScreenshotDockManager: NSObject {
     /// Called asynchronously so SwiftUI publishes pending state changes before
     /// the fitting size is measured.
     private func refreshLayout() {
-        guard let panel else { return }
+        guard panel != nil, !layoutUpdatePending else { return }
+        layoutUpdatePending = true
         DispatchQueue.main.async { [weak self] in
-            guard let self, let current = self.panel, current === panel else { return }
+            guard let self else { return }
+            layoutUpdatePending = false
+            guard let current = panel else { return }
             layoutPanel(current)
         }
     }
