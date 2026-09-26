@@ -8,6 +8,7 @@
 
 #import "AppDelegate.h"
 #import "AppDelegate+EZURLScheme.h"
+#import <Easydict-Swift.h>
 
 
 @interface AppDelegate ()
@@ -18,6 +19,10 @@
 
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification {
     MMLogInfo(@"程序启动");
+
+    // Start recording workspace activations before any clipboard URL can
+    // arrive; the URL path needs the pre-URL frontmost app history.
+    [ClipboardManager warmUp];
 
     [ShortcutManager.shared setupShortcut];
 

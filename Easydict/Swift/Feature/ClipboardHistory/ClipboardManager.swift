@@ -19,6 +19,32 @@ final class ClipboardManager: NSObject {
 
     override private init() {
         super.init()
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+        ) { [weak self] note in
+            guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+                  // Launchers like Raycast are .accessory and never become the
+                  // paste destination; our own activations must not self-target.
+                  app.activationPolicy == .regular,
+                  app != NSRunningApplication.current
+            else { return }
+            MainActor.assumeIsolated {
+                self?.lastActiveRegularApp = app
+            }
+        }
+    }
+
+    // MARK: Public
+
+    /// Registers the workspace-activation observer before any URL can
+    /// arrive. The singleton is lazy, and the first `openPanelFromURL`
+    /// access would otherwise happen *at* URL time, losing every
+    /// activation that preceded it — AppDelegate warms this up at launch.
+    @objc
+    public nonisolated static func warmUp() {
+        MainActor.assumeIsolated {
+            _ = shared
+        }
     }
 
     // MARK: Internal
@@ -53,7 +79,18 @@ final class ClipboardManager: NSObject {
     /// beneath ours. Only .regular apps qualify — launchers like Raycast
     /// (.accessory) and helpers never become the paste destination.
     func openPanelFromURL() {
-        previousApp = Self.captureRegularAppUnderOurs()
+        // Window-stack capture misfires whenever any floating-level window is
+        // on screen (a pinned video player sits above every app, so the scan
+        // always resolves to it). The activation record tracks the app the
+        // user actually worked in, which floating windows never become.
+        if let last = lastActiveRegularApp, last != NSRunningApplication.current, !last.isTerminated {
+            previousApp = last
+            logInfo(
+                "[Clipboard] URL source app captured (last active), bundle=\(last.bundleIdentifier ?? "?")"
+            )
+        } else {
+            previousApp = Self.captureRegularAppUnderOurs()
+        }
         if let previousApp {
             logInfo(
                 "[Clipboard] URL source app captured, bundle=\(previousApp.bundleIdentifier ?? "?")"
@@ -148,6 +185,11 @@ final class ClipboardManager: NSObject {
     /// not strongly held, so the target silently became nil between panel
     /// open and select, and the paste took the no-target fast path.
     private var previousApp: NSRunningApplication?
+
+    /// Most recent .regular app the workspace activated, excluding us. Raycast
+    /// triggering the URL never interrupts this record because .accessory
+    /// activations are skipped, so it still names the user's working app.
+    private var lastActiveRegularApp: NSRunningApplication?
 
     /// Hides the panel when Easydict loses focus — the "states stay in sync"
     /// contract: collapsing Raycast (or clicking anywhere else) collapses the
