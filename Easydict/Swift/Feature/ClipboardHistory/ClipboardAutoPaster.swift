@@ -103,6 +103,10 @@ enum ClipboardAutoPaster {
         let vKeyCode: CGKeyCode = 9 // kVK_ANSI_V
         let down = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: true)
         down?.flags = .maskCommand
+        // Keycode-only is deliberate: attaching a unicode string makes
+        // NSEvent.characters diverge from the keycode-derived value and
+        // AppKit menu-equivalent matching then drops the paste (verified
+        // in TextEdit A/B), so compatibility hacks stay off here.
         down?.post(tap: .cghidEventTap)
 
         try? await Task.sleep(nanoseconds: 20_000_000)
