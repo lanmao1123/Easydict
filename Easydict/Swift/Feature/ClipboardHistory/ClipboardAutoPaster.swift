@@ -48,7 +48,9 @@ enum ClipboardAutoPaster {
 
         guard let previousApp else {
             // Unknown origin: paste into whatever is frontmost right now.
-            postPasteKeystroke()
+            Task { @MainActor in
+                await postPasteKeystroke()
+            }
             return
         }
 
@@ -56,28 +58,28 @@ enum ClipboardAutoPaster {
             previousApp.activate()
             if await waitUntilFrontmost(previousApp, timeout: 0.5) {
                 await settleBeforePaste()
-                postPasteKeystroke()
+                await postPasteKeystroke()
                 return
             }
 
             previousApp.activate()
             if await waitUntilFrontmost(previousApp, timeout: 0.5) {
                 await settleBeforePaste()
-                postPasteKeystroke()
+                await postPasteKeystroke()
                 return
             }
 
             activateViaAppleScript(previousApp)
             if await waitUntilFrontmost(previousApp, timeout: 0.8) {
                 await settleBeforePaste()
-                postPasteKeystroke()
+                await postPasteKeystroke()
                 return
             }
 
             // Could not verify the handoff; paste anyway, best effort.
             logWarn("[Clipboard] Frontmost handoff unverified, posting paste anyway")
             await settleBeforePaste()
-            postPasteKeystroke()
+            await postPasteKeystroke()
         }
     }
 
@@ -91,16 +93,22 @@ enum ClipboardAutoPaster {
         try? await Task.sleep(nanoseconds: 220_000_000)
     }
 
-    /// Posts ⌘V down/up to the hid tap.
-    private static func postPasteKeystroke() {
+    /// Posts ⌘V down/up to the hid tap. The keyUp must trail keyDown by a
+    /// short beat: a zero-gap down/up pair is intermittently swallowed by the
+    /// window server (reproduced as a silent no-op in TextEdit), while a gap
+    /// of 2ms or more lands reliably.
+    private static func postPasteKeystroke() async {
         guard let source = CGEventSource(stateID: .hidSystemState) else { return }
 
         let vKeyCode: CGKeyCode = 9 // kVK_ANSI_V
         let down = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: true)
-        let up = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: false)
         down?.flags = .maskCommand
-        up?.flags = .maskCommand
         down?.post(tap: .cghidEventTap)
+
+        try? await Task.sleep(nanoseconds: 20_000_000)
+
+        let up = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: false)
+        up?.flags = .maskCommand
         up?.post(tap: .cghidEventTap)
         logInfo("[Clipboard] Auto-paste keystroke posted")
     }
