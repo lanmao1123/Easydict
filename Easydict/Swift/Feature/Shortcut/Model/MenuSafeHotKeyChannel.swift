@@ -404,6 +404,10 @@ final class MenuSafeHotKeyChannel {
     ///   pointer to the click spot — the "pointer jumps mid-screen" bug.
     private func dismissOpenMenus(_ menus: [(bounds: CGRect, pid: pid_t)]) {
         guard let menu = menus.first, menu.pid > 0 else { return }
+        guard CGPreflightPostEventAccess() else {
+            logInfo("menu dismissal skipped, post-event permission missing")
+            return
+        }
 
         if menu.pid == getpid() {
             let here = CGEvent(source: nil)?.location ?? .zero

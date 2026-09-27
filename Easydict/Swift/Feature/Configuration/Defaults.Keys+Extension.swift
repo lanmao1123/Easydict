@@ -14,6 +14,12 @@ import Magnet
 extension Defaults.Keys {
     /// is first launch
     static let firstLaunch = Key<Bool>("EZConfiguration_kFirstLaunch", default: true)
+    static let didRequestAutoPasteAccessibility = Key<Bool>(
+        "EZConfiguration_kDidRequestAutoPasteAccessibility", default: false
+    )
+    static let didRequestAutoPastePostEvent = Key<Bool>(
+        "EZConfiguration_kDidRequestAutoPastePostEvent", default: false
+    )
 }
 
 // Setting

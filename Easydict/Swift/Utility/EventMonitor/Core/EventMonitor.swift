@@ -177,8 +177,7 @@ final class EventMonitor: NSObject {
     }
 
     func isAccessibilityEnabled() -> Bool {
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-        let isEnabled = AXIsProcessTrustedWithOptions(options)
+        let isEnabled = AXIsProcessTrusted()
         logInfo("accessibilityEnabled: \(isEnabled)")
         return isEnabled
     }

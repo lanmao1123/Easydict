@@ -8,12 +8,13 @@
 
 import AppKit
 import ApplicationServices
+import Defaults
 
 // MARK: - ClipboardAutoPaster
 
 /// Synthesizes a ⌘V keystroke into the frontmost app after a history entry
-/// is written back, Raycast-style. Posting CGEvents requires the Accessibility
-/// permission; without it the call degrades to "copy only" and logging says so.
+/// is written back, Raycast-style. Posting CGEvents requires Accessibility and
+/// event-synthesis access; without them the call degrades to "copy only".
 enum ClipboardAutoPaster {
     // MARK: Internal
 
@@ -40,10 +41,33 @@ enum ClipboardAutoPaster {
             EZToast.showText(
                 NSLocalizedString("clipboard_autopaste_needs_accessibility", comment: "")
             )
-            let prompt = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
-                as CFDictionary
-            _ = AXIsProcessTrustedWithOptions(prompt)
+            if !Defaults[.didRequestAutoPasteAccessibility] {
+                Defaults[.didRequestAutoPasteAccessibility] = true
+                let prompt = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
+                    as CFDictionary
+                _ = AXIsProcessTrustedWithOptions(prompt)
+            }
             return
+        }
+
+        // macOS may grant Accessibility while withholding the separate right
+        // to synthesize input. Posting without this preflight can raise a
+        // system dialog on every paste attempt.
+        if !CGPreflightPostEventAccess() {
+            let granted: Bool
+            if Defaults[.didRequestAutoPastePostEvent] {
+                granted = false
+            } else {
+                Defaults[.didRequestAutoPastePostEvent] = true
+                granted = CGRequestPostEventAccess()
+            }
+            guard granted, CGPreflightPostEventAccess() else {
+                logInfo("[Clipboard] Auto-paste skipped, post-event permission missing")
+                EZToast.showText(
+                    NSLocalizedString("clipboard_autopaste_needs_post_event", comment: "")
+                )
+                return
+            }
         }
 
         guard let previousApp else {

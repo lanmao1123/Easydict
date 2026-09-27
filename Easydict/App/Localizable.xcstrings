@@ -21913,6 +21913,47 @@
         }
       }
     },
+    "clipboard_autopaste_needs_post_event" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allow Yaomao to control this Mac in System Settings to auto-paste"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permite que Yaomao controle este Mac en Ajustes del Sistema para pegar automáticamente"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動ペーストにはシステム設定で Yaomao にこの Mac の制御を許可してください"
+          }
+        },
+        "sk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pre automatické vkladanie povoľte aplikácii Yaomao ovládať tento Mac v Systémových nastaveniach"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请在系统设置中允许 Yaomao 控制此 Mac，以使用自动粘贴"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請在系統設定中允許 Yaomao 控制此 Mac，以使用自動貼上"
+          }
+        }
+      }
+    },
     "screenshot_dock_pronunciation_button" : {
       "extractionState" : "manual",
       "localizations" : {
