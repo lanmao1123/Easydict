@@ -304,11 +304,10 @@ final class PinImageManager: NSObject {
         }
     }
 
-    /// Probes the session tap every 30s: the query form of tapEnable returns
-    /// whether the system still considers the tap enabled. A dead tap is
-    /// rebuilt immediately instead of staying silent until the next pin.
+    /// Probes installed taps every 30s. A dead tap falls back to magnify
+    /// monitors instead of repeatedly requesting access from the system.
     private func ensurePinchHealthTimer() {
-        guard pinchHealthTimer == nil else { return }
+        guard pinchHealthTimer == nil, !pinchTaps.isEmpty else { return }
         pinchHealthTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.checkPinchTapHealth()
@@ -320,14 +319,15 @@ final class PinImageManager: NSObject {
         guard !pinchTaps.isEmpty else { return }
         let healthy = pinchTaps.contains { CFMachPortIsValid($0) && CGEvent.tapIsEnabled(tap: $0) }
         if !healthy {
-            logWarn("[SnipTools] Pinch taps unhealthy, rebuilding all")
+            logWarn("[SnipTools] Pinch taps unhealthy, using magnify monitors")
             removePinchTap()
-            installPinchTapIfNeeded()
+            pinchHealthTimer?.invalidate()
+            pinchHealthTimer = nil
+            installMagnifyMonitorIfNeeded(allowGlobal: CGPreflightListenEventAccess())
         }
     }
 
-    /// Watches wake notifications so a dead session tap is rebuilt on the
-    /// next pin install instead of staying silent until relaunch.
+    /// Watches wake notifications so gesture handling is restored after sleep.
     private func installWakeObserverIfNeeded() {
         guard wakeObserver == nil else { return }
         wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
@@ -351,6 +351,11 @@ final class PinImageManager: NSObject {
     /// swallow events.
     private func installPinchTapIfNeeded() {
         guard pinchTaps.isEmpty else { return }
+        guard CGPreflightListenEventAccess() else {
+            logInfo("[SnipTools] Input monitoring unavailable, using local magnify monitor")
+            installMagnifyMonitorIfNeeded(allowGlobal: false)
+            return
+        }
 
         let box = PinchTapBox { [weak self] magnification in
             MainActor.assumeIsolated {
@@ -437,7 +442,7 @@ final class PinImageManager: NSObject {
         logInfo("[SnipTools] System pinch tap removed")
     }
 
-    private func installMagnifyMonitorIfNeeded() {
+    private func installMagnifyMonitorIfNeeded(allowGlobal: Bool = true) {
         guard magnifyMonitor == nil else { return }
 
         magnifyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.magnify]) { [weak self] event in
@@ -449,12 +454,14 @@ final class PinImageManager: NSObject {
             // pass the rest through to the view-level backup path.
             return handled ? nil : event
         }
-        globalMagnifyMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.magnify]) { [weak self] event in
-            MainActor.assumeIsolated {
-                _ = self?.handleMagnify(event, source: "global")
+        if allowGlobal {
+            globalMagnifyMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.magnify]) { [weak self] event in
+                MainActor.assumeIsolated {
+                    _ = self?.handleMagnify(event, source: "global")
+                }
             }
         }
-        logInfo("[SnipTools] Pin magnify monitors installed (local + global)")
+        logInfo("[SnipTools] Pin magnify monitors installed (global=\(allowGlobal))")
     }
 
     /*

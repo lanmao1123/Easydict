@@ -42,6 +42,7 @@ final class EventTapMonitor {
         dispatchPrecondition(condition: .onQueue(.main))
 
         stop()
+        guard CGPreflightListenEventAccess() else { return }
 
         let eventMask = CGEventMask(1 << CGEventType.keyDown.rawValue)
         let callback: CGEventTapCallBack = { _, type, event, refcon in

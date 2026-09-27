@@ -3050,9 +3050,9 @@ class OverlayView: NSView {
         window?.ignoresMouseEvents = true
 
         // Suppress mouse-moved events via CGEvent tap so hover effects in the
-        // target app don't break stitch detection. Requires Accessibility permission
-        // (checked before entering scroll capture mode).
-        if AXIsProcessTrusted() {
+        // target app don't break stitch detection. Requires Accessibility and
+        // Input Monitoring permissions; skip the tap if either is unavailable.
+        if AXIsProcessTrusted(), CGPreflightListenEventAccess() {
             let tap = CGEvent.tapCreate(
                 tap: .cgSessionEventTap,
                 place: .headInsertEventTap,

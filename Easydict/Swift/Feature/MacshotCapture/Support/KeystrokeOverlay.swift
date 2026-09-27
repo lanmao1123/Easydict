@@ -52,6 +52,7 @@ class KeystrokeOverlay: NSPanel {
 
     func startMonitoring() {
         guard eventTap == nil else { return }
+        guard Self.hasInputMonitoringPermission else { return }
 
         let mask: CGEventMask = (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.flagsChanged.rawValue)
 
